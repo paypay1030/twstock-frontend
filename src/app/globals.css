@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap');
+
+:root {
+  --font-sans: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, 'PingFang TC', sans-serif;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: var(--font-sans);
+}
+
+/* 台股顏色快取類別 */
+.price-up   { color: #DC2626; }
+.price-down { color: #16A34A; }
+.price-flat { color: #78716C; }
+
+/* 安全區域底部（iPhone 劉海）*/
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
