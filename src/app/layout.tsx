@@ -5,18 +5,28 @@ import GlobalHeader from '@/components/layout/GlobalHeader'
 
 export const metadata: Metadata = {
   title: '我的持股管家',
-  description: '台股個人投資分析助手｜所有分析均為機率與風險評估。',
-}
-export const viewport: Viewport = {
-  width: 'device-width', initialScale: 1, maximumScale: 1,
+  description: '台股個人投資分析助手｜所有分析均為機率與風險評估，不保證股價走勢。',
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+}
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
   return (
     <html lang="zh-TW">
-      <body className="font-sans antialiased bg-stone-50 text-stone-800">
+      <body className="font-sans antialiased bg-[#F7F5F3] text-stone-900 min-h-screen">
         <GlobalHeader />
-        <main className="pb-20 pt-12">{children}</main>
+        <main className="pb-20 pt-12 max-w-lg mx-auto">
+          {children}
+        </main>
         <BottomNav />
       </body>
     </html>
