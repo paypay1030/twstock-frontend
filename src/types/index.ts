@@ -89,11 +89,13 @@ export interface HoldingStats {
   latestSellDate: string | null
   totalInvested: number
   realizedPnL: number
-  unrealizedPnL: number
-  unrealizedPnLPct: number
-  currentValue: number
-  distanceToBreakeven: number   // 正=還需漲%，負=已解套
-  isProfit: boolean
+  // 以下欄位依賴 currentPrice，未取得時為 null
+  currentPrice: number | null
+  unrealizedPnL: number | null
+  unrealizedPnLPct: number | null
+  currentValue: number | null
+  distanceToBreakeven: number | null
+  isProfit: boolean | null
 }
 
 // ════════════════════════════════════════════════════════════

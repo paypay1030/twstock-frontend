@@ -9,49 +9,52 @@ const fmt = (n: number) => Math.round(n).toLocaleString('zh-TW')
 
 export default function TrimCalculator({ stats, currentPrice }: Props) {
   const { trimRules } = useSettingsStore()
-  const [basis, setBasis] = useState<'shares'|'value'>('shares')
-  const [customPct, setCustomPct] = useState<number|null>(null)
+  const [basis, setBasis] = useState<'shares' | 'value'>('shares')
+  const [customPct, setCustomPct] = useState<number | null>(null)
 
   const SCENARIOS = [
-    { key: 'near',    label: '接近賣點區',  pct: trimRules.near_resist,   color: 'bg-amber-50 border-amber-200 text-amber-700' },
-    { key: 'in',      label: '進入賣點區',  pct: trimRules.in_resist,     color: 'bg-orange-50 border-orange-200 text-orange-700' },
-    { key: 'fail',    label: '突破失敗',    pct: trimRules.fail_breakout, color: 'bg-red-50 border-red-200 text-red-700' },
-    { key: 'breach',  label: '跌破買點區',  pct: trimRules.break_support, color: 'bg-red-100 border-red-300 text-red-800' },
+    { key: 'near',   label: '接近賣點區',  pct: trimRules.near_resist,   color: 'bg-amber-50 border-amber-200 text-amber-700' },
+    { key: 'in',     label: '進入賣點區',  pct: trimRules.in_resist,     color: 'bg-orange-50 border-orange-200 text-orange-700' },
+    { key: 'fail',   label: '突破失敗',    pct: trimRules.fail_breakout, color: 'bg-red-50 border-red-200 text-red-700' },
+    { key: 'breach', label: '跌破買點區',  pct: trimRules.break_support, color: 'bg-red-100 border-red-300 text-red-800' },
   ] as const
 
+  // 現在 stats.currentValue 可能為 null，用 currentPrice prop 計算
   function calc(pct: number) {
     let sellShares: number
     if (basis === 'shares') {
       sellShares = Math.floor(stats.currentShares * pct)
     } else {
-      const sellValue = stats.currentValue * pct
-      sellShares = Math.floor(sellValue / currentPrice)
+      const totalVal = stats.currentShares * currentPrice
+      sellShares = Math.floor((totalVal * pct) / currentPrice)
     }
     sellShares = Math.min(sellShares, stats.currentShares)
-    const remain = stats.currentShares - sellShares
+    const remain  = stats.currentShares - sellShares
     const recover = Math.round(sellShares * currentPrice)
     const remainVal = Math.round(remain * currentPrice)
     return { sellShares, lots: Math.floor(sellShares / 1000), remain, recover, remainVal }
   }
 
   const activePct = customPct ?? SCENARIOS[1].pct
-  const custom = calc(activePct)
+  const custom    = calc(activePct)
 
   return (
     <div className="space-y-3">
       {/* 基準切換 */}
       <div className="flex items-center gap-2 text-xs">
         <span className="text-stone-400">計算基準：</span>
-        {(['shares','value'] as const).map(b => (
+        {(['shares', 'value'] as const).map(b => (
           <button key={b} onClick={() => setBasis(b)}
             className={`px-3 py-1 rounded-full border font-medium transition-all ${
-              basis === b ? 'bg-amber-400 text-white border-amber-400' : 'bg-white text-stone-500 border-stone-200'
+              basis === b
+                ? 'bg-amber-400 text-white border-amber-400'
+                : 'bg-white text-stone-500 border-stone-200'
             }`}
           >{b === 'shares' ? '依股數' : '依市值'}</button>
         ))}
       </div>
 
-      {/* 四種情境 */}
+      {/* 四情境 */}
       <div className="grid grid-cols-2 gap-2">
         {SCENARIOS.map(s => {
           const d = calc(s.pct)
