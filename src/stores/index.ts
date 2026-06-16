@@ -1,6 +1,68 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { persist, createJSONStorage } from 'zustand/middleware'
 import type { TradeRecord, TradeType, AnalysisResponse, HoldingStats } from '@/types'
+
+// ════════════════════════════════════════════════════════════
+// LocalStorage Key 常數（固定不變，部署後資料不遺失）
+// ════════════════════════════════════════════════════════════
+export const STORAGE_KEYS = {
+  trades:   'twstock_transactions_v1',
+  settings: 'twstock_settings_v1',
+} as const
+
+// ════════════════════════════════════════════════════════════
+// 資料版本遷移（舊 key → 新 key）
+// 在 App 初始化時呼叫一次（見 GlobalHeader）
+// ════════════════════════════════════════════════════════════
+export function migrateLocalStorage() {
+  if (typeof window === 'undefined') return
+
+  const migrations = [
+    // 舊 Zustand 自動 key → 新固定 key
+    { from: 'twstock-trades',     to: STORAGE_KEYS.trades },
+    // 更舊的持股格式：holdings → trades
+    {
+      from: 'twstock-holdings',
+      to:   STORAGE_KEYS.trades,
+      transform: (raw: string) => {
+        try {
+          const parsed = JSON.parse(raw)
+          const holdings = parsed?.state?.holdings ?? parsed?.holdings ?? []
+          if (!Array.isArray(holdings) || holdings.length === 0) return null
+          const trades: TradeRecord[] = holdings
+            .map((h: any) => ({
+              id:     h.id ?? crypto.randomUUID(),
+              code:   h.code ?? h.stock ?? '',
+              name:   h.name ?? h.code ?? '',
+              type:   'buy' as TradeType,
+              price:  Number(h.cost ?? 0),
+              shares: Number(h.shares ?? 0),
+              date:   h.date ?? new Date().toISOString().split('T')[0],
+              note:   '從舊版資料自動遷移',
+            }))
+            .filter((t: TradeRecord) => t.code && t.shares > 0)
+          if (trades.length === 0) return null
+          return JSON.stringify({ state: { trades }, version: 1 })
+        } catch { return null }
+      },
+    },
+  ] as const
+
+  for (const m of migrations) {
+    if (localStorage.getItem(m.to)) continue     // 新 key 已存在，略過
+    const old = localStorage.getItem(m.from)
+    if (!old) continue
+
+    const migrated = 'transform' in m
+      ? m.transform(old)
+      : old   // 格式相同，直接搬
+
+    if (migrated) {
+      localStorage.setItem(m.to, migrated)
+      console.info(`[migrate] ${m.from} → ${m.to}`)
+    }
+  }
+}
 
 // ════════════════════════════════════════════════════════════
 // 交易紀錄 Store
@@ -10,19 +72,33 @@ interface TradeStore {
   addTrade:    (t: Omit<TradeRecord, 'id'>) => void
   updateTrade: (id: string, t: Partial<TradeRecord>) => void
   deleteTrade: (id: string) => void
-  getByCode:   (code: string) => TradeRecord[]
 }
 
 export const useTradeStore = create<TradeStore>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       trades: [],
-      addTrade:    (t) => set(s => ({ trades: [{ ...t, id: crypto.randomUUID() }, ...s.trades] })),
-      updateTrade: (id, t) => set(s => ({ trades: s.trades.map(x => x.id === id ? { ...x, ...t } : x) })),
-      deleteTrade: (id) => set(s => ({ trades: s.trades.filter(x => x.id !== id) })),
-      getByCode:   (code) => get().trades.filter(t => t.code === code),
+      addTrade:    (t) => set(s => ({
+        trades: [{ ...t, id: crypto.randomUUID() }, ...s.trades],
+      })),
+      updateTrade: (id, t) => set(s => ({
+        trades: s.trades.map(x => x.id === id ? { ...x, ...t } : x),
+      })),
+      deleteTrade: (id) => set(s => ({
+        trades: s.trades.filter(x => x.id !== id),
+      })),
     }),
-    { name: 'twstock-trades' }
+    {
+      name:    STORAGE_KEYS.trades,
+      storage: createJSONStorage(() => localStorage),
+      version: 1,
+      // version 不同時保留資料（不清空）
+      migrate: (persisted: any, version: number) => {
+        // v0 → v1：結構不變，直接沿用
+        if (version === 0 && persisted?.trades) return persisted
+        return persisted
+      },
+    }
   )
 )
 
@@ -32,31 +108,23 @@ export const useTradeStore = create<TradeStore>()(
 export function suggestTradeType(
   code: string, trades: TradeRecord[], direction: 'buy' | 'sell'
 ): TradeType {
-  const codeTrades = trades.filter(t => t.code === code)
   let shares = 0
-  for (const t of codeTrades) {
+  for (const t of trades.filter(x => x.code === code)) {
     if (t.type === 'buy' || t.type === 'add') shares += t.shares
     else shares -= t.shares
   }
   if (direction === 'buy')  return shares > 0 ? 'add' : 'buy'
-  else                       return shares <= 0 ? 'sell' : 'reduce'
+  return shares <= 0 ? 'sell' : 'reduce'
 }
 
 // ════════════════════════════════════════════════════════════
-// 持股統計計算
-//
-// currentPrice 傳入規則：
-//   - 已取得現價 → 傳入數字（> 0）
-//   - 尚未取得   → 傳入 null
-//
-// 傳入 null 時，所有依賴 currentPrice 的欄位也為 null，
-// 防止顯示層出現 $0 / -100% 等假性數值。
+// 持股統計計算（純函數）
 // ════════════════════════════════════════════════════════════
 export function calcHoldingStats(
   code: string,
   name: string,
   trades: TradeRecord[],
-  currentPrice: number | null   // ← null = 尚未取得，禁止回退到 0
+  currentPrice: number | null   // null = 現價尚未取得
 ): HoldingStats {
   const sorted = [...trades.filter(t => t.code === code)]
     .sort((a, b) => a.date.localeCompare(b.date))
@@ -89,40 +157,38 @@ export function calcHoldingStats(
 
   const safeShares = Math.max(currentShares, 0)
   const avgCost    = safeShares > 0 ? totalCostBasis / safeShares : 0
+  const buys       = sorted.filter(t => t.type === 'buy' || t.type === 'add')
+  const sells      = sorted.filter(t => t.type === 'sell' || t.type === 'reduce')
 
-  const buys  = sorted.filter(t => t.type === 'buy' || t.type === 'add')
-  const sells = sorted.filter(t => t.type === 'sell' || t.type === 'reduce')
-
-  // ── 依賴 currentPrice 的欄位：null = 未取得 ──────────────
-  let currentValueField:       number | null = null
-  let unrealizedPnLField:      number | null = null
-  let unrealizedPnLPctField:   number | null = null
+  // ── 依賴 currentPrice 的欄位（null = 尚未取得，不計算假性數值）──
+  let currentValueField:        number | null = null
+  let unrealizedPnLField:       number | null = null
+  let unrealizedPnLPctField:    number | null = null
   let distanceToBreakevenField: number | null = null
-  let isProfitField:           boolean | null = null
+  let isProfitField:            boolean | null = null
 
   if (currentPrice !== null && currentPrice > 0) {
-    currentValueField         = Math.round(safeShares * currentPrice)
-    unrealizedPnLField        = Math.round(currentValueField - safeShares * avgCost)
-    unrealizedPnLPctField     = avgCost > 0
+    currentValueField        = Math.round(safeShares * currentPrice)
+    unrealizedPnLField       = Math.round(currentValueField - safeShares * avgCost)
+    unrealizedPnLPctField    = avgCost > 0
       ? Math.round(((currentPrice - avgCost) / avgCost) * 10000) / 100
       : null
-    distanceToBreakevenField  = avgCost > 0
+    distanceToBreakevenField = avgCost > 0
       ? Math.round(((avgCost - currentPrice) / currentPrice) * 10000) / 100
       : null
-    isProfitField             = currentPrice >= avgCost
+    isProfitField = currentPrice >= avgCost
   }
 
   return {
     code, name,
-    currentShares:       safeShares,
-    avgCost:             Math.round(avgCost * 100) / 100,
-    latestBuyPrice:      buys.at(-1)?.price  ?? null,
-    latestSellPrice:     sells.at(-1)?.price ?? null,
-    latestBuyDate:       buys.at(-1)?.date   ?? null,
-    latestSellDate:      sells.at(-1)?.date  ?? null,
-    totalInvested:       Math.round(totalCostBasis),
-    realizedPnL:         Math.round(realizedPnL),
-    // 現價相關（可能為 null）
+    currentShares:        safeShares,
+    avgCost:              Math.round(avgCost * 100) / 100,
+    latestBuyPrice:       buys.at(-1)?.price  ?? null,
+    latestSellPrice:      sells.at(-1)?.price ?? null,
+    latestBuyDate:        buys.at(-1)?.date   ?? null,
+    latestSellDate:       sells.at(-1)?.date  ?? null,
+    totalInvested:        Math.round(totalCostBasis),
+    realizedPnL:          Math.round(realizedPnL),
     currentPrice,
     currentValue:         currentValueField,
     unrealizedPnL:        unrealizedPnLField,
@@ -133,7 +199,7 @@ export function calcHoldingStats(
 }
 
 // ════════════════════════════════════════════════════════════
-// 分析快取 Store
+// 分析結果快取（session 內，不持久化）
 // ════════════════════════════════════════════════════════════
 interface AnalysisStore {
   cache: Record<string, AnalysisResponse>
@@ -141,7 +207,7 @@ interface AnalysisStore {
   getCache: (code: string) => AnalysisResponse | undefined
 }
 export const useAnalysisStore = create<AnalysisStore>()((set, get) => ({
-  cache: {},
+  cache:    {},
   setCache: (code, d) => set(s => ({ cache: { ...s.cache, [code]: d } })),
   getCache: (code) => get().cache[code],
 }))
@@ -158,6 +224,7 @@ interface SettingsStore {
   }
   setTrimRules: (r: Partial<SettingsStore['trimRules']>) => void
 }
+
 export const useSettingsStore = create<SettingsStore>()(
   persist(
     (set) => ({
@@ -169,6 +236,11 @@ export const useSettingsStore = create<SettingsStore>()(
       },
       setTrimRules: (r) => set(s => ({ trimRules: { ...s.trimRules, ...r } })),
     }),
-    { name: 'twstock-settings' }
+    {
+      name:    STORAGE_KEYS.settings,
+      storage: createJSONStorage(() => localStorage),
+      version: 1,
+      migrate: (persisted: any) => persisted,
+    }
   )
 )

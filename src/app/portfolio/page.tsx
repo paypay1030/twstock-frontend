@@ -246,11 +246,12 @@ function HoldingInfoTab({ stats, techMode }: {
 // ── 單檔持股大卡 ─────────────────────────────────────────────
 type CardTab = 'info' | 'unstuck' | 'trim' | 'timeline'
 
-function HoldingCard({ stats, loading, error, signal, onAddTrade }: {
+function HoldingCard({ stats, loading, error, signal, sr, onAddTrade }: {
   stats: HoldingStats
   loading: boolean
   error: string | null
   signal?: { color: SignalColor; label: string; action: string }
+  sr?: { resistLevel1?: number; resistLevel2?: number; supportLevel1?: number }
   onAddTrade: () => void
 }) {
   const [tab, setTab] = useState<CardTab>('info')
@@ -351,7 +352,13 @@ function HoldingCard({ stats, loading, error, signal, onAddTrade }: {
           <UnstuckProgress stats={stats} defaultView="ring" />
         )}
         {tab === 'trim' && hasPrice && (
-          <TrimCalculator stats={stats} currentPrice={price!} />
+          <TrimCalculator
+            stats={stats}
+            currentPrice={price!}
+            resistLevel1={sr?.resistLevel1}
+            resistLevel2={sr?.resistLevel2}
+            supportLevel1={sr?.supportLevel1}
+          />
         )}
         {tab === 'timeline' && (
           <TradeTimeline trades={codeTrades} onDelete={deleteTrade} maxVisible={5} />
@@ -366,7 +373,8 @@ function StockSearchPanel({ onSelect, onCancel }: {
   onSelect: (
     code: string, name: string,
     price?: number,
-    signal?: { color: SignalColor; label: string; action: string }
+    signal?: { color: SignalColor; label: string; action: string },
+    sr?: { resistLevel1?: number; resistLevel2?: number; supportLevel1?: number }
   ) => void
   onCancel: () => void
 }) {
@@ -384,13 +392,18 @@ function StockSearchPanel({ onSelect, onCancel }: {
     setBusy(true)
     try {
       const r = await analyzeStock(s.code)
+      const sr = r.sr_result
       onSelect(s.code, s.name, r.basic.current_price, {
         color:  r.decision_card.signal.color,
         label:  r.decision_card.signal.label,
         action: r.decision_card.main_action,
+      }, {
+        resistLevel1:  sr.resistance_levels[0]?.range_low  ?? undefined,
+        resistLevel2:  sr.resistance_levels[1]?.range_low  ?? undefined,
+        supportLevel1: sr.support_levels[0]?.range_high    ?? undefined,
       })
     } catch {
-      onSelect(s.code, s.name)   // 降級：沒有現價也能新增
+      onSelect(s.code, s.name)
     } finally { setBusy(false) }
   }
 
@@ -431,6 +444,10 @@ export default function PortfolioPage() {
   const [statusMap, setStatusMap] = useState<Record<string, LoadStatus>>({})
   const [errorMap,  setErrorMap]  = useState<Record<string, string>>({})
   const [signalMap, setSignalMap] = useState<Record<string, { color: SignalColor; label: string; action: string }>>({})
+  // SR 目標價格（第一壓力、第二壓力、第一支撐），由 analyzeStock 填充
+  const [srMap, setSrMap] = useState<Record<string, {
+    resistLevel1?: number; resistLevel2?: number; supportLevel1?: number
+  }>>({})
 
   // ── 現價 Map：明確區分 null（未取得）和數值 ───────────────
   const [priceMap, setPriceMap] = useState<Record<string, number>>({})
@@ -478,18 +495,41 @@ export default function PortfolioPage() {
 
       setStatusMap(m => ({ ...m, [code]: 'loading' }))
 
-      getStockBasic(code)
-        .then(data => {
-          const p = data.current_price
+      // 使用 analyzeStock 一次取得現價 + 燈號 + 壓力支撐（供「賣多少」頁籤用）
+      analyzeStock(code)
+        .then(r => {
+          const p = r.basic.current_price
           if (!p || p <= 0) throw new Error('回傳現價無效')
           setPriceMap( m => ({ ...m, [code]: p }))
           setStatusMap(m => ({ ...m, [code]: 'done' }))
           setErrorMap( m => { const n = { ...m }; delete n[code]; return n })
+          // 同時填充燈號（若尚未有）
+          setSignalMap(m => m[code] ? m : { ...m, [code]: {
+            color:  r.decision_card.signal.color,
+            label:  r.decision_card.signal.label,
+            action: r.decision_card.main_action,
+          }})
+          // 填充壓力支撐（供減碼試算目標價格）
+          setSrMap(m => m[code] ? m : { ...m, [code]: {
+            resistLevel1:  r.decision_card.resistance_levels[0]?.range_low  ?? undefined,
+            resistLevel2:  r.decision_card.resistance_levels[1]?.range_low  ?? undefined,
+            supportLevel1: r.decision_card.support_levels[0]?.range_high    ?? undefined,
+          }})
         })
         .catch(err => {
-          const msg = err instanceof Error ? err.message : '無法取得現價'
-          setErrorMap( m => ({ ...m, [code]: msg }))
-          setStatusMap(m => ({ ...m, [code]: 'error' }))
+          // analyzeStock 失敗時 fallback 到輕量 getStockBasic
+          getStockBasic(code)
+            .then(data => {
+              const p = data.current_price
+              if (!p || p <= 0) throw new Error('現價無效')
+              setPriceMap( m => ({ ...m, [code]: p }))
+              setStatusMap(m => ({ ...m, [code]: 'done' }))
+            })
+            .catch(() => {
+              const msg = err instanceof Error ? err.message : '無法取得現價'
+              setErrorMap( m => ({ ...m, [code]: msg }))
+              setStatusMap(m => ({ ...m, [code]: 'error' }))
+            })
         })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -501,7 +541,8 @@ export default function PortfolioPage() {
   const handleSelectStock = useCallback((
     code: string, name: string,
     price?: number,
-    signal?: { color: SignalColor; label: string; action: string }
+    signal?: { color: SignalColor; label: string; action: string },
+    sr?: { resistLevel1?: number; resistLevel2?: number; supportLevel1?: number }
   ) => {
     setSearching(false)
     if (price && price > 0) {
@@ -509,6 +550,7 @@ export default function PortfolioPage() {
       setStatusMap(m => ({ ...m, [code]: 'done' }))
     }
     if (signal) setSignalMap(m => ({ ...m, [code]: signal }))
+    if (sr)     setSrMap(    m => ({ ...m, [code]: sr }))
     setAdding({ code, name, price, suggested: suggestTradeType(code, trades, 'buy') })
   }, [trades])
 
@@ -601,6 +643,7 @@ export default function PortfolioPage() {
               loading={statusMap[code] === 'loading' || statusMap[code] === 'pending' || statusMap[code] === undefined}
               error={statusMap[code] === 'error' ? (errorMap[code] ?? '取得失敗') : null}
               signal={signalMap[code]}
+              sr={srMap[code]}
               onAddTrade={() => handleAddFor(code, name)}
             />
           ))
