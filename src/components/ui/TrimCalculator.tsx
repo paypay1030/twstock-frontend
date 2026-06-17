@@ -163,7 +163,7 @@ export default function TrimCalculator({
                 </div>
               ) : (
                 <div className="text-[10px] text-stone-300 mb-2 px-1">
-                  目標價：取得分析後顯示
+                  此股票目前無對應價位
                 </div>
               )}
 

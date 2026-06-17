@@ -246,12 +246,14 @@ function HoldingInfoTab({ stats, techMode }: {
 // ── 單檔持股大卡 ─────────────────────────────────────────────
 type CardTab = 'info' | 'unstuck' | 'trim' | 'timeline'
 
-function HoldingCard({ stats, loading, error, signal, sr, onAddTrade }: {
+function HoldingCard({ stats, loading, error, signal, sr, srAttempted, onRetryAnalysis, onAddTrade }: {
   stats: HoldingStats
   loading: boolean
   error: string | null
   signal?: { color: SignalColor; label: string; action: string }
   sr?: { resistLevel1?: number; resistLevel2?: number; supportLevel1?: number }
+  srAttempted?: boolean
+  onRetryAnalysis: () => void
   onAddTrade: () => void
 }) {
   const [tab, setTab] = useState<CardTab>('info')
@@ -351,15 +353,45 @@ function HoldingCard({ stats, loading, error, signal, sr, onAddTrade }: {
         {tab === 'unstuck' && hasPrice && (
           <UnstuckProgress stats={stats} defaultView="ring" />
         )}
-        {tab === 'trim' && hasPrice && (
-          <TrimCalculator
-            stats={stats}
-            currentPrice={price!}
-            resistLevel1={sr?.resistLevel1}
-            resistLevel2={sr?.resistLevel2}
-            supportLevel1={sr?.supportLevel1}
-          />
-        )}
+        {tab === 'trim' && hasPrice && (() => {
+          const hasSrData = sr && (
+            sr.resistLevel1 !== undefined ||
+            sr.resistLevel2 !== undefined ||
+            sr.supportLevel1 !== undefined
+          )
+          if (hasSrData) {
+            return (
+              <TrimCalculator
+                stats={stats}
+                currentPrice={price!}
+                resistLevel1={sr!.resistLevel1}
+                resistLevel2={sr!.resistLevel2}
+                supportLevel1={sr!.supportLevel1}
+              />
+            )
+          }
+          if (srAttempted) {
+            return (
+              <div className="text-center py-6">
+                <div className="text-xs text-stone-400 mb-3 leading-relaxed">
+                  此股票目前未計算出明確的支撐壓力位，<br/>暫無法顯示目標價格。
+                </div>
+                <button
+                  onClick={onRetryAnalysis}
+                  className="px-4 py-2 bg-amber-400 hover:bg-amber-500 text-white text-xs font-bold rounded-xl transition-colors"
+                >
+                  重新分析
+                </button>
+              </div>
+            )
+          }
+          return (
+            <div className="flex items-center justify-center gap-2 py-6 text-stone-400">
+              <div className="w-4 h-4 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
+              <span className="text-xs">分析中…</span>
+            </div>
+          )
+        })()}
         {tab === 'timeline' && (
           <TradeTimeline trades={codeTrades} onDelete={deleteTrade} maxVisible={5} />
         )}
@@ -484,53 +516,60 @@ export default function PortfolioPage() {
   const totalRealized   = Object.values(statsMap).reduce((s, x) => s + x.realizedPnL, 0)
   const allLoaded       = stockList.every(({ code }) => statusMap[code] === 'done' || statusMap[code] === 'error')
 
+  // SR 嘗試狀態：分辨「還沒分析」vs「分析過但無壓力位」
+  const [srAttempted, setSrAttempted] = useState<Record<string, boolean>>({})
+
+  // 取得單一股票的完整分析（現價 + 燈號 + 壓力支撐），可重複呼叫供「重新分析」按鈕使用
+  const fetchAnalysis = useCallback((code: string) => {
+    setStatusMap(m => ({ ...m, [code]: 'loading' }))
+
+    analyzeStock(code)
+      .then(r => {
+        const p = r.basic.current_price
+        if (!p || p <= 0) throw new Error('回傳現價無效')
+        setPriceMap( m => ({ ...m, [code]: p }))
+        setStatusMap(m => ({ ...m, [code]: 'done' }))
+        setErrorMap( m => { const n = { ...m }; delete n[code]; return n })
+        setSignalMap(m => ({ ...m, [code]: {
+          color:  r.decision_card.signal.color,
+          label:  r.decision_card.signal.label,
+          action: r.decision_card.main_action,
+        }}))
+        // 即使 resistance_levels / support_levels 為空陣列，也標記為已嘗試過
+        setSrMap(m => ({ ...m, [code]: {
+          resistLevel1:  r.decision_card.resistance_levels[0]?.range_low  ?? undefined,
+          resistLevel2:  r.decision_card.resistance_levels[1]?.range_low  ?? undefined,
+          supportLevel1: r.decision_card.support_levels[0]?.range_high    ?? undefined,
+        }}))
+        setSrAttempted(m => ({ ...m, [code]: true }))
+      })
+      .catch(err => {
+        // analyzeStock 失敗時 fallback 到輕量 getStockBasic（至少拿到現價）
+        getStockBasic(code)
+          .then(data => {
+            const p = data.current_price
+            if (!p || p <= 0) throw new Error('現價無效')
+            setPriceMap( m => ({ ...m, [code]: p }))
+            setStatusMap(m => ({ ...m, [code]: 'done' }))
+            // srMap 維持 undefined → UI 顯示「重新分析」按鈕，而非永遠卡住
+            setSrAttempted(m => ({ ...m, [code]: true }))
+          })
+          .catch(() => {
+            const msg = err instanceof Error ? err.message : '無法取得現價'
+            setErrorMap( m => ({ ...m, [code]: msg }))
+            setStatusMap(m => ({ ...m, [code]: 'error' }))
+            setSrAttempted(m => ({ ...m, [code]: true }))
+          })
+      })
+  }, [])
+
   // ── 頁面掛載後自動取得所有持股現價 ──────────────────────
   useEffect(() => {
     if (stockList.length === 0) return
-
     for (const { code } of stockList) {
-      // 只對尚未取得 / 未在載入中的才發請求
       const status = statusMap[code]
       if (status === 'done' || status === 'loading') continue
-
-      setStatusMap(m => ({ ...m, [code]: 'loading' }))
-
-      // 使用 analyzeStock 一次取得現價 + 燈號 + 壓力支撐（供「賣多少」頁籤用）
-      analyzeStock(code)
-        .then(r => {
-          const p = r.basic.current_price
-          if (!p || p <= 0) throw new Error('回傳現價無效')
-          setPriceMap( m => ({ ...m, [code]: p }))
-          setStatusMap(m => ({ ...m, [code]: 'done' }))
-          setErrorMap( m => { const n = { ...m }; delete n[code]; return n })
-          // 同時填充燈號（若尚未有）
-          setSignalMap(m => m[code] ? m : { ...m, [code]: {
-            color:  r.decision_card.signal.color,
-            label:  r.decision_card.signal.label,
-            action: r.decision_card.main_action,
-          }})
-          // 填充壓力支撐（供減碼試算目標價格）
-          setSrMap(m => m[code] ? m : { ...m, [code]: {
-            resistLevel1:  r.decision_card.resistance_levels[0]?.range_low  ?? undefined,
-            resistLevel2:  r.decision_card.resistance_levels[1]?.range_low  ?? undefined,
-            supportLevel1: r.decision_card.support_levels[0]?.range_high    ?? undefined,
-          }})
-        })
-        .catch(err => {
-          // analyzeStock 失敗時 fallback 到輕量 getStockBasic
-          getStockBasic(code)
-            .then(data => {
-              const p = data.current_price
-              if (!p || p <= 0) throw new Error('現價無效')
-              setPriceMap( m => ({ ...m, [code]: p }))
-              setStatusMap(m => ({ ...m, [code]: 'done' }))
-            })
-            .catch(() => {
-              const msg = err instanceof Error ? err.message : '無法取得現價'
-              setErrorMap( m => ({ ...m, [code]: msg }))
-              setStatusMap(m => ({ ...m, [code]: 'error' }))
-            })
-        })
+      fetchAnalysis(code)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stockList])
@@ -644,6 +683,8 @@ export default function PortfolioPage() {
               error={statusMap[code] === 'error' ? (errorMap[code] ?? '取得失敗') : null}
               signal={signalMap[code]}
               sr={srMap[code]}
+              srAttempted={srAttempted[code]}
+              onRetryAnalysis={() => fetchAnalysis(code)}
               onAddTrade={() => handleAddFor(code, name)}
             />
           ))
