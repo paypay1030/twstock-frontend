@@ -37,7 +37,12 @@ export interface AnalysisResponse {
   buy_zone: [number, number]; sell_zone: [number, number]
   stop_loss_zone: [number, number]; disclaimer: string
 }
-export interface SearchResult { code: string; name: string; market: string }
+export interface SearchResult {
+  code: string
+  name: string
+  market: string
+  type?: string   // 股票 / ETF / 特別股 / ETN 等，與股票同級顯示，非必要欄位
+}
 
 // ════════════════════════════════════════════════════════════
 // 交易紀錄 & 投資日誌
