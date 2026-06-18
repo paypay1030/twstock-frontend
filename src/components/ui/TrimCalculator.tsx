@@ -11,9 +11,49 @@ interface Props {
   resistLevel1?: number | null   // 第一壓力下緣（接近/進入賣點區目標）
   resistLevel2?: number | null   // 第二壓力下緣（突破失敗目標）
   supportLevel1?: number | null  // 第一支撐上緣（跌破目標）
+  stopLoss?: number | null       // 後端建議停損價（跌破買點區的備援來源）
 }
 
 const fmt = (n: number) => Math.round(n).toLocaleString('zh-TW')
+const round1 = (n: number) => Math.round(n * 100) / 100
+
+/**
+ * 目標價格外推邏輯：
+ * 後端 resistance_levels / support_levels 不一定總是有兩筆（常見只有 0~1 筆），
+ * 因此這裡用「現有已知價位」彼此互相外推，確保四個情境都能顯示合理目標價，
+ * 而非在資料缺漏時顯示「無對應價位」。
+ *
+ * 外推規則（皆基於現價 currentPrice 與已知的有效價位）：
+ *   1. 若 resistLevel1 存在 → 直接用
+ *      否則 → 用現價 × 1.05（距現價 +5%，估算的第一賣點）
+ *   2. 若 resistLevel2 存在 → 直接用
+ *      否則 → 用 resistLevel1（若存在）× 1.03，或現價 × 1.08
+ *   3. 若 supportLevel1 存在 → 直接用
+ *      否則 → 用 stopLoss（若存在）× 1.02，或現價 × 0.95
+ *   4. 跌破買點區的目標 → 優先用 stopLoss，其次用 supportLevel1 × 0.98，
+ *      最後用現價 × 0.93
+ */
+function deriveTargets(
+  currentPrice: number,
+  resistLevel1?: number | null,
+  resistLevel2?: number | null,
+  supportLevel1?: number | null,
+  stopLoss?: number | null,
+) {
+  // 第一壓力：有則用，否則用現價外推
+  const r1 = resistLevel1 ?? round1(currentPrice * 1.05)
+
+  // 第二壓力：有則用；否則以 r1 為基礎外推，若 r1 本身也是外推值則再加碼
+  const r2 = resistLevel2 ?? round1(r1 * 1.03)
+
+  // 第一支撐：有則用，否則嘗試用 stopLoss 反推，最後用現價外推
+  const s1 = supportLevel1 ?? (stopLoss ? round1(stopLoss * 1.02) : round1(currentPrice * 0.95))
+
+  // 跌破買點區（停損目標）：優先用後端 stopLoss，其次用 s1 外推，最後現價外推
+  const breach = stopLoss ?? (supportLevel1 ? round1(supportLevel1 * 0.98) : round1(currentPrice * 0.93))
+
+  return { r1, r2, s1, breach }
+}
 
 export default function TrimCalculator({
   stats,
@@ -21,9 +61,19 @@ export default function TrimCalculator({
   resistLevel1 = null,
   resistLevel2 = null,
   supportLevel1 = null,
+  stopLoss = null,
 }: Props) {
   const { trimRules } = useSettingsStore()
   const { techMode }  = useUIStore()
+
+  const targets = deriveTargets(currentPrice, resistLevel1, resistLevel2, supportLevel1, stopLoss)
+  // 是否為「真實分析值」還是「外推估算值」，供 UI 標示
+  const isEstimated = {
+    r1:     resistLevel1  === null || resistLevel1  === undefined,
+    r2:     resistLevel2  === null || resistLevel2  === undefined,
+    s1:     supportLevel1 === null || supportLevel1 === undefined,
+    breach: stopLoss      === null || stopLoss      === undefined,
+  }
 
   // ── basis：明確用 useState，切換時強制 re-render ──────────
   const [basis, setBasis] = useState<'shares' | 'value'>('shares')
@@ -61,14 +111,15 @@ export default function TrimCalculator({
     }
   }
 
-  // ── 四個情境（純資料，不含計算結果）─────────────────────
+  // ── 四個情境（永遠有目標價，來自實際分析或合理外推）──────
   const SCENARIOS = [
     {
       key:         'near',
       label:       '接近賣點區',
       desc:        techMode ? '距壓力 ≤3%' : '股價快到高點了',
       pct:         trimRules.near_resist,
-      targetLabel: resistLevel1 ? `${resistLevel1} 元附近` : null,
+      targetLabel: `${targets.r1} 元附近`,
+      estimated:   isEstimated.r1,
       color:       'border-amber-200 bg-amber-50',
       labelCls:    'text-amber-700',
       badgeCls:    'bg-amber-100 text-amber-700',
@@ -78,7 +129,8 @@ export default function TrimCalculator({
       label:       '進入賣點區',
       desc:        techMode ? '已進入壓力區' : '股價已到高點',
       pct:         trimRules.in_resist,
-      targetLabel: resistLevel1 ? `${resistLevel1} 元以上` : null,
+      targetLabel: `${targets.r1} 元以上`,
+      estimated:   isEstimated.r1,
       color:       'border-orange-200 bg-orange-50',
       labelCls:    'text-orange-700',
       badgeCls:    'bg-orange-100 text-orange-700',
@@ -88,9 +140,8 @@ export default function TrimCalculator({
       label:       '突破失敗',
       desc:        techMode ? '衝高後回跌' : '漲上去又跌回來',
       pct:         trimRules.fail_breakout,
-      targetLabel: (resistLevel2 ?? resistLevel1)
-        ? `${resistLevel2 ?? resistLevel1} 元回落`
-        : null,
+      targetLabel: `${targets.r2} 元回落`,
+      estimated:   isEstimated.r2,
       color:       'border-red-200 bg-red-50',
       labelCls:    'text-red-700',
       badgeCls:    'bg-red-100 text-red-700',
@@ -100,7 +151,8 @@ export default function TrimCalculator({
       label:       '跌破買點區',
       desc:        techMode ? '跌破支撐，停損' : '跌到該賣的地方',
       pct:         trimRules.break_support,
-      targetLabel: supportLevel1 ? `${supportLevel1} 元以下` : null,
+      targetLabel: `${targets.breach} 元以下`,
+      estimated:   isEstimated.breach,
       color:       'border-red-300 bg-red-100',
       labelCls:    'text-red-800',
       badgeCls:    'bg-red-200 text-red-800',
@@ -155,17 +207,12 @@ export default function TrimCalculator({
               </div>
               <div className="text-[10px] text-stone-400 mb-2">{s.desc}</div>
 
-              {/* 目標價格 */}
-              {s.targetLabel ? (
-                <div className={`text-[10px] font-bold px-2 py-1 rounded-lg mb-2 inline-flex items-center gap-1 ${s.badgeCls}`}>
-                  <span>📌</span>
-                  <span>{s.targetLabel}</span>
-                </div>
-              ) : (
-                <div className="text-[10px] text-stone-300 mb-2 px-1">
-                  此股票目前無對應價位
-                </div>
-              )}
+              {/* 目標價格（永遠顯示；若為外推估算值，加註小提示） */}
+              <div className={`text-[10px] font-bold px-2 py-1 rounded-lg mb-2 inline-flex items-center gap-1 ${s.badgeCls}`}>
+                <span>📌</span>
+                <span>{s.targetLabel}</span>
+                {s.estimated && <span className="opacity-60">（估）</span>}
+              </div>
 
               {/* 減碼比例 */}
               <div className="text-[10px] text-stone-500 mb-1.5">

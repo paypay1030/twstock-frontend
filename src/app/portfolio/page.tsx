@@ -251,7 +251,7 @@ function HoldingCard({ stats, loading, error, signal, sr, srAttempted, onRetryAn
   loading: boolean
   error: string | null
   signal?: { color: SignalColor; label: string; action: string }
-  sr?: { resistLevel1?: number; resistLevel2?: number; supportLevel1?: number }
+  sr?: { resistLevel1?: number; resistLevel2?: number; supportLevel1?: number; stopLoss?: number }
   srAttempted?: boolean
   onRetryAnalysis: () => void
   onAddTrade: () => void
@@ -353,45 +353,16 @@ function HoldingCard({ stats, loading, error, signal, sr, srAttempted, onRetryAn
         {tab === 'unstuck' && hasPrice && (
           <UnstuckProgress stats={stats} defaultView="ring" />
         )}
-        {tab === 'trim' && hasPrice && (() => {
-          const hasSrData = sr && (
-            sr.resistLevel1 !== undefined ||
-            sr.resistLevel2 !== undefined ||
-            sr.supportLevel1 !== undefined
-          )
-          if (hasSrData) {
-            return (
-              <TrimCalculator
-                stats={stats}
-                currentPrice={price!}
-                resistLevel1={sr!.resistLevel1}
-                resistLevel2={sr!.resistLevel2}
-                supportLevel1={sr!.supportLevel1}
-              />
-            )
-          }
-          if (srAttempted) {
-            return (
-              <div className="text-center py-6">
-                <div className="text-xs text-stone-400 mb-3 leading-relaxed">
-                  此股票目前未計算出明確的支撐壓力位，<br/>暫無法顯示目標價格。
-                </div>
-                <button
-                  onClick={onRetryAnalysis}
-                  className="px-4 py-2 bg-amber-400 hover:bg-amber-500 text-white text-xs font-bold rounded-xl transition-colors"
-                >
-                  重新分析
-                </button>
-              </div>
-            )
-          }
-          return (
-            <div className="flex items-center justify-center gap-2 py-6 text-stone-400">
-              <div className="w-4 h-4 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
-              <span className="text-xs">分析中…</span>
-            </div>
-          )
-        })()}
+        {tab === 'trim' && hasPrice && (
+          <TrimCalculator
+            stats={stats}
+            currentPrice={price!}
+            resistLevel1={sr?.resistLevel1 ?? null}
+            resistLevel2={sr?.resistLevel2 ?? null}
+            supportLevel1={sr?.supportLevel1 ?? null}
+            stopLoss={sr?.stopLoss ?? null}
+          />
+        )}
         {tab === 'timeline' && (
           <TradeTimeline trades={codeTrades} onDelete={deleteTrade} maxVisible={5} />
         )}
@@ -406,7 +377,7 @@ function StockSearchPanel({ onSelect, onCancel }: {
     code: string, name: string,
     price?: number,
     signal?: { color: SignalColor; label: string; action: string },
-    sr?: { resistLevel1?: number; resistLevel2?: number; supportLevel1?: number }
+    sr?: { resistLevel1?: number; resistLevel2?: number; supportLevel1?: number; stopLoss?: number }
   ) => void
   onCancel: () => void
 }) {
@@ -476,9 +447,9 @@ export default function PortfolioPage() {
   const [statusMap, setStatusMap] = useState<Record<string, LoadStatus>>({})
   const [errorMap,  setErrorMap]  = useState<Record<string, string>>({})
   const [signalMap, setSignalMap] = useState<Record<string, { color: SignalColor; label: string; action: string }>>({})
-  // SR 目標價格（第一壓力、第二壓力、第一支撐），由 analyzeStock 填充
+  // SR 目標價格（第一壓力、第二壓力、第一支撐、停損），由 analyzeStock 填充
   const [srMap, setSrMap] = useState<Record<string, {
-    resistLevel1?: number; resistLevel2?: number; supportLevel1?: number
+    resistLevel1?: number; resistLevel2?: number; supportLevel1?: number; stopLoss?: number
   }>>({})
 
   // ── 現價 Map：明確區分 null（未取得）和數值 ───────────────
@@ -525,6 +496,12 @@ export default function PortfolioPage() {
 
     analyzeStock(code)
       .then(r => {
+        // 除錯用：印出實際 analyze API 回應，確認後端真實資料結構
+        console.log(`[analyzeStock:${code}]`, {
+          resistance_levels: r.decision_card.resistance_levels,
+          support_levels:    r.decision_card.support_levels,
+          stop_loss:         r.decision_card.stop_loss,
+        })
         const p = r.basic.current_price
         if (!p || p <= 0) throw new Error('回傳現價無效')
         setPriceMap( m => ({ ...m, [code]: p }))
@@ -535,11 +512,18 @@ export default function PortfolioPage() {
           label:  r.decision_card.signal.label,
           action: r.decision_card.main_action,
         }}))
-        // 即使 resistance_levels / support_levels 為空陣列，也標記為已嘗試過
+        // 依 rank 篩選，確保語意正確（陣列順序不一定等於 rank 順序）
+        const resLevels = r.decision_card.resistance_levels
+        const supLevels = r.decision_card.support_levels
+        const res1 = resLevels.find(l => l.rank === 1) ?? resLevels[0]
+        const res2 = resLevels.find(l => l.rank === 2) ?? resLevels[1]
+        const sup1 = supLevels.find(l => l.rank === 1) ?? supLevels[0]
+
         setSrMap(m => ({ ...m, [code]: {
-          resistLevel1:  r.decision_card.resistance_levels[0]?.range_low  ?? undefined,
-          resistLevel2:  r.decision_card.resistance_levels[1]?.range_low  ?? undefined,
-          supportLevel1: r.decision_card.support_levels[0]?.range_high    ?? undefined,
+          resistLevel1:  res1?.range_low  ?? undefined,
+          resistLevel2:  res2?.range_low  ?? undefined,
+          supportLevel1: sup1?.range_high ?? undefined,
+          stopLoss:      r.decision_card.stop_loss ?? undefined,
         }}))
         setSrAttempted(m => ({ ...m, [code]: true }))
       })
@@ -581,7 +565,7 @@ export default function PortfolioPage() {
     code: string, name: string,
     price?: number,
     signal?: { color: SignalColor; label: string; action: string },
-    sr?: { resistLevel1?: number; resistLevel2?: number; supportLevel1?: number }
+    sr?: { resistLevel1?: number; resistLevel2?: number; supportLevel1?: number; stopLoss?: number }
   ) => {
     setSearching(false)
     if (price && price > 0) {
