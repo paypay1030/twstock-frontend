@@ -1,11 +1,13 @@
 'use client'
 
 import { useState, useMemo, useCallback, useEffect } from 'react'
-import { useTradeStore, calcHoldingStats, suggestTradeType } from '@/stores'
+import { useTradeStore, useDividendStore, calcHoldingStats, suggestTradeType } from '@/stores'
 import { useUIStore } from '@/stores/ui'
 import { getStockBasic, analyzeStock, searchStocks } from '@/lib/api'
 import { generateUnstuckText, SIGNAL_PLAIN } from '@/lib/plain-talk'
-import type { SearchResult, HoldingStats, TradeType, SignalColor } from '@/types'
+import { calcRealProfit, calcTotalReturn } from '@/lib/fee-calculator'
+import { calcStockDividendTotal } from '@/lib/dividend-stats'
+import type { SearchResult, HoldingStats, TradeType, SignalColor, InstrumentType } from '@/types'
 import { TRADE_META } from '@/types'
 import TradeForm from '@/components/cards/TradeForm'
 import TradeTimeline from '@/components/cards/TradeTimeline'
@@ -180,12 +182,73 @@ function HoldingHeader({ stats, loading, error, onAdd }: {
 }
 
 // ── 持股詳細 Tab ─────────────────────────────────────────────
+type ProfitMode = 'book' | 'real'
+
 function HoldingInfoTab({ stats, techMode }: {
   stats: HoldingStats; techMode: boolean
 }) {
+  const { dividends } = useDividendStore()
+  const [mode, setMode] = useState<ProfitMode>('real')   // 預設顯示「實際」，更貼近真實到手金額
+
   const price = stats.currentPrice
+  const hasPrice = price !== null && price > 0
+  const investedCost = Math.round(stats.avgCost * stats.currentShares)   // 投入成本（含買進手續費）
+  const dividendIncome = calcStockDividendTotal(dividends, stats.code)
+
+  // 實際模式：用 calcRealProfit 重新計算「若現在全部賣出」的真實未實現損益（扣預估賣出費稅）
+  const realProfit = hasPrice && stats.currentShares > 0
+    ? calcRealProfit(stats.avgCost, stats.currentShares, price!, stats.instrumentType)
+    : null
+
+  // 依模式決定顯示的未實現損益數值
+  const displayUnrealizedPnL = mode === 'book'
+    ? stats.unrealizedPnL
+    : (realProfit?.realPnL ?? null)
+  const displayUnrealizedPct = mode === 'book'
+    ? stats.unrealizedPnLPct
+    : (realProfit?.realPnLPct ?? null)
+
+  // 真正總報酬 = 已實現損益（已是實際獲利）+ 未實現損益（依模式）+ 股息收入
+  const totalReturn = calcTotalReturn(
+    stats.realizedPnL,
+    displayUnrealizedPnL ?? 0,
+    dividendIncome
+  )
+
   return (
     <div className="space-y-3">
+      {/* 帳面 / 實際 切換 */}
+      {hasPrice && stats.currentShares > 0 && (
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] text-stone-400">
+            {techMode ? '損益計算方式' : '要看哪種算法？'}
+          </span>
+          <div className="flex bg-stone-100 rounded-lg p-0.5 gap-0.5">
+            {(['book', 'real'] as ProfitMode[]).map(m => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${
+                  mode === m ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-400'
+                }`}
+              >
+                {m === 'book'
+                  ? (techMode ? '帳面' : '帳面金額')
+                  : (techMode ? '實際' : '真正到手')}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {!techMode && (
+        <p className="text-[10px] text-stone-400 leading-relaxed -mt-1.5">
+          {mode === 'book'
+            ? '帳面金額：還沒扣手續費和證交稅的數字'
+            : '真正到手：已經扣掉手續費、證交稅後，真正會落袋的錢'}
+        </p>
+      )}
+
+      {/* 基本資訊四格（不變動）*/}
       <div className="grid grid-cols-2 gap-x-6 gap-y-3">
         {[
           { l: techMode ? '加權平均成本' : '我的買進成本',
@@ -203,30 +266,41 @@ function HoldingInfoTab({ stats, techMode }: {
           </div>
         ))}
       </div>
-      {/* 損益三格（全部 null-safe）*/}
+
+      {/* 投入成本 + 現在市值 */}
+      <div className="grid grid-cols-2 gap-x-6 gap-y-3 pt-2 border-t border-stone-100">
+        <div>
+          <div className="text-[10px] text-stone-400 mb-0.5">
+            {techMode ? '投入成本' : '我投入了多少'}
+          </div>
+          <div className="text-sm font-bold text-stone-800">${fmt(investedCost)}</div>
+        </div>
+        <div>
+          <div className="text-[10px] text-stone-400 mb-0.5">
+            {techMode ? '現在市值' : '現在值多少'}
+          </div>
+          <div className="text-sm font-bold text-stone-800">
+            {stats.currentValue !== null ? `$${fmt(stats.currentValue)}` : '—'}
+          </div>
+        </div>
+      </div>
+
+      {/* 損益三格（依模式切換顯示數字）*/}
       <div className="pt-2 border-t border-stone-100 grid grid-cols-3 gap-2 text-center">
         <div>
           <div className="text-[10px] text-stone-400 mb-1">
             {techMode ? '未實現損益' : '目前損益'}
           </div>
-          <div className={`text-sm font-extrabold ${pnlCls(stats.unrealizedPnL)}`}>
-            {stats.unrealizedPnL !== null
-              ? `${stats.unrealizedPnL >= 0 ? '+' : ''}${fmt(stats.unrealizedPnL)}`
+          <div className={`text-sm font-extrabold ${pnlCls(displayUnrealizedPnL)}`}>
+            {displayUnrealizedPnL !== null
+              ? `${displayUnrealizedPnL >= 0 ? '+' : ''}${fmt(displayUnrealizedPnL)}`
               : '—'}
           </div>
-          {stats.unrealizedPnLPct !== null && (
-            <div className={`text-[10px] mt-0.5 ${pnlCls(stats.unrealizedPnLPct)}`}>
-              {fmtPct(stats.unrealizedPnLPct)}
+          {displayUnrealizedPct !== null && (
+            <div className={`text-[10px] mt-0.5 ${pnlCls(displayUnrealizedPct)}`}>
+              {fmtPct(displayUnrealizedPct)}
             </div>
           )}
-        </div>
-        <div>
-          <div className="text-[10px] text-stone-400 mb-1">
-            {techMode ? '目前市值' : '現在值多少'}
-          </div>
-          <div className="text-sm font-extrabold text-stone-700">
-            {stats.currentValue !== null ? `$${fmt(stats.currentValue)}` : '—'}
-          </div>
         </div>
         <div>
           <div className="text-[10px] text-stone-400 mb-1">
@@ -238,7 +312,34 @@ function HoldingInfoTab({ stats, techMode }: {
               : '—'}
           </div>
         </div>
+        <div>
+          <div className="text-[10px] text-stone-400 mb-1">
+            {techMode ? '股息收入' : '領到的股息'}
+          </div>
+          <div className="text-sm font-extrabold text-emerald-600">
+            {dividendIncome > 0 ? `+${fmt(dividendIncome)}` : '—'}
+          </div>
+        </div>
       </div>
+
+      {/* 真正總報酬（強調卡）*/}
+      {hasPrice && stats.currentShares > 0 && (
+        <div className="rounded-xl bg-gradient-to-br from-stone-800 to-stone-900 px-4 py-3 flex items-center justify-between">
+          <div>
+            <div className="text-[9px] text-stone-400 font-bold tracking-wider">
+              {techMode ? '真正總報酬' : '我真正賺了多少'}
+            </div>
+            <div className="text-[9px] text-stone-500 mt-0.5">
+              {mode === 'book' ? '帳面' : '實際'} +股息+已實現
+            </div>
+          </div>
+          <div className={`text-lg font-extrabold ${
+            totalReturn.totalReturn >= 0 ? 'text-red-400' : 'text-emerald-400'
+          }`}>
+            {totalReturn.totalReturn >= 0 ? '+' : ''}{fmt(totalReturn.totalReturn)}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -361,6 +462,7 @@ function HoldingCard({ stats, loading, error, signal, sr, srAttempted, onRetryAn
             resistLevel2={sr?.resistLevel2 ?? null}
             supportLevel1={sr?.supportLevel1 ?? null}
             stopLoss={sr?.stopLoss ?? null}
+            instrumentType={stats.instrumentType}
           />
         )}
         {tab === 'timeline' && (
@@ -377,7 +479,8 @@ function StockSearchPanel({ onSelect, onCancel }: {
     code: string, name: string,
     price?: number,
     signal?: { color: SignalColor; label: string; action: string },
-    sr?: { resistLevel1?: number; resistLevel2?: number; supportLevel1?: number; stopLoss?: number }
+    sr?: { resistLevel1?: number; resistLevel2?: number; supportLevel1?: number; stopLoss?: number },
+    instrumentType?: InstrumentType
   ) => void
   onCancel: () => void
 }) {
@@ -393,6 +496,7 @@ function StockSearchPanel({ onSelect, onCancel }: {
 
   const pick = async (s: SearchResult) => {
     setBusy(true)
+    const instrumentType: InstrumentType = s.type === 'ETF' ? 'etf' : 'stock'
     try {
       const r = await analyzeStock(s.code)
       const sr = r.sr_result
@@ -404,9 +508,9 @@ function StockSearchPanel({ onSelect, onCancel }: {
         resistLevel1:  sr.resistance_levels[0]?.range_low  ?? undefined,
         resistLevel2:  sr.resistance_levels[1]?.range_low  ?? undefined,
         supportLevel1: sr.support_levels[0]?.range_high    ?? undefined,
-      })
+      }, instrumentType)
     } catch {
-      onSelect(s.code, s.name)
+      onSelect(s.code, s.name, undefined, undefined, undefined, instrumentType)
     } finally { setBusy(false) }
   }
 
@@ -458,7 +562,7 @@ export default function PortfolioPage() {
   // ── UI 狀態 ───────────────────────────────────────────────
   const [searching,   setSearching] = useState(false)
   const [addingTrade, setAdding]    = useState<{
-    code: string; name: string; price?: number; suggested: TradeType
+    code: string; name: string; price?: number; suggested: TradeType; instrumentType?: InstrumentType
   } | null>(null)
 
   // ── 從交易紀錄推導持股清單 ────────────────────────────────
@@ -565,7 +669,8 @@ export default function PortfolioPage() {
     code: string, name: string,
     price?: number,
     signal?: { color: SignalColor; label: string; action: string },
-    sr?: { resistLevel1?: number; resistLevel2?: number; supportLevel1?: number; stopLoss?: number }
+    sr?: { resistLevel1?: number; resistLevel2?: number; supportLevel1?: number; stopLoss?: number },
+    instrumentType?: InstrumentType
   ) => {
     setSearching(false)
     if (price && price > 0) {
@@ -574,7 +679,7 @@ export default function PortfolioPage() {
     }
     if (signal) setSignalMap(m => ({ ...m, [code]: signal }))
     if (sr)     setSrMap(    m => ({ ...m, [code]: sr }))
-    setAdding({ code, name, price, suggested: suggestTradeType(code, trades, 'buy') })
+    setAdding({ code, name, price, suggested: suggestTradeType(code, trades, 'buy'), instrumentType })
   }, [trades])
 
   const handleAddFor = useCallback((code: string, name: string) => {
@@ -582,12 +687,18 @@ export default function PortfolioPage() {
       code, name,
       price: priceMap[code],
       suggested: suggestTradeType(code, trades, 'buy'),
+      instrumentType: statsMap[code]?.instrumentType,
     })
-  }, [trades, priceMap])
+  }, [trades, priceMap, statsMap])
 
   const handleSave = useCallback((tradeData: any) => {
     if (!addingTrade) return
-    addTrade({ ...tradeData, code: addingTrade.code, name: addingTrade.name })
+    addTrade({
+      ...tradeData,
+      code: addingTrade.code,
+      name: addingTrade.name,
+      instrumentType: addingTrade.instrumentType ?? 'stock',
+    })
     setAdding(null)
   }, [addingTrade, addTrade])
 

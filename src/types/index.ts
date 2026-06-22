@@ -66,6 +66,8 @@ export const CONFIDENCE_META: Record<ConfidenceLevel, { icon: string; label: str
   3: { icon:'🌳', label:'有把握', desc:'高度信心，較大部位' },
 }
 
+export type InstrumentType = 'stock' | 'etf'
+
 export interface TradeRecord {
   id: string
   code: string
@@ -75,6 +77,7 @@ export interface TradeRecord {
   shares: number
   date: string           // YYYY-MM-DD
   note?: string
+  instrumentType?: InstrumentType   // 股票 / ETF，決定證交稅率；缺省視為 stock
   journal?: {
     reason: string
     confidence: ConfidenceLevel
@@ -94,6 +97,7 @@ export interface HoldingStats {
   latestSellDate: string | null
   totalInvested: number
   realizedPnL: number
+  instrumentType: InstrumentType   // 股票或 ETF，決定證交稅率；從交易紀錄推導
   // 以下欄位依賴 currentPrice，未取得時為 null
   currentPrice: number | null
   unrealizedPnL: number | null
@@ -116,3 +120,119 @@ export interface TrimResult {
   remainValue: number
 }
 export type TrimBasis = 'shares' | 'value'
+
+// ════════════════════════════════════════════════════════════
+// Phase 2.5：手續費／證交稅／真實獲利
+// ════════════════════════════════════════════════════════════
+
+/** 單筆買進或賣出的成交明細（含手續費拆解） */
+export interface TradeFeeBreakdown {
+  grossAmount: number   // 成交金額（價格 × 股數，未扣費）
+  fee: number             // 手續費（已套用折扣，四捨五入至整數）
+  tax: number              // 證交稅（僅賣出時收取；買進為 0）
+  netAmount: number       // 實際金額：買進=grossAmount+fee；賣出=grossAmount-fee-tax
+}
+
+/** 單一持股的帳面 vs 實際損益（含手續費稅務）*/
+export interface RealProfitResult {
+  code: string
+  // 帳面（不計費稅，沿用現有 HoldingStats 邏輯）
+  bookCost: number
+  bookValue: number
+  bookPnL: number
+  bookPnLPct: number
+  // 實際（計入買進手續費 + 預估賣出手續費與證交稅）
+  realCost: number          // 實際投入成本 = Σ(買進金額 + 買進手續費)
+  estSellFee: number        // 若現在全部賣出，預估手續費
+  estSellTax: number        // 若現在全部賣出，預估證交稅
+  realPnL: number            // 實際損益 = bookValue - estSellFee - estSellTax - realCost
+  realPnLPct: number
+}
+
+/** 減碼試算的完整費稅明細（賣多少頁面強化用）*/
+export interface TrimFeeDetail {
+  grossAmount: number     // 成交金額
+  buyCostBasis: number    // 對應股數的買進成本（含當初買進手續費）
+  fee: number               // 賣出手續費
+  tax: number                // 賣出證交稅
+  netRecover: number        // 實際回收 = grossAmount - fee - tax
+  realProfit: number        // 實際獲利 = netRecover - buyCostBasis
+}
+
+// ════════════════════════════════════════════════════════════
+// Phase 2.5：股息紀錄
+// ════════════════════════════════════════════════════════════
+export interface DividendRecord {
+  id: string
+  code: string
+  name: string
+  date: string      // YYYY-MM-DD
+  amount: number    // 該筆股息金額（元，非每股）
+  note?: string
+}
+
+// ════════════════════════════════════════════════════════════
+// Phase 2.5：自選股
+// ════════════════════════════════════════════════════════════
+export interface WatchlistItem {
+  id: string
+  code: string
+  name: string
+  addedDate: string
+  instrumentType?: InstrumentType
+}
+
+// ════════════════════════════════════════════════════════════
+// Phase 2.5：真正總報酬 / 資產比例 / 交易統計
+// ════════════════════════════════════════════════════════════
+export interface TotalReturnResult {
+  realizedPnL: number      // 已實現損益（實際獲利，已扣費稅）
+  unrealizedPnL: number    // 未實現損益（帳面，依現價，未扣未來賣出費稅）
+  dividendIncome: number   // 股息收入加總
+  totalReturn: number       // 三者加總
+}
+
+export interface AssetAllocationItem {
+  code: string
+  name: string
+  value: number
+  pct: number
+  instrumentType: InstrumentType
+}
+export interface AssetAllocationResult {
+  stockValue: number
+  etfValue: number
+  cashValue: number
+  total: number
+  items: AssetAllocationItem[]
+}
+
+/** 單筆已實現交易明細（FIFO 配對後的結果，供統計引擎使用）*/
+export interface RealizedTrade {
+  code: string
+  name: string
+  sellDate: string
+  buyDate: string | null     // FIFO 配對到的買進日期，可能因資料不全而為 null
+  shares: number
+  realProfit: number          // 此筆配對的實際獲利（已扣費稅）
+  holdingDays: number | null  // 持有天數，buyDate 不存在時為 null
+}
+
+export interface YearlyTradeSummary {
+  year: string
+  realizedPnL: number
+  tradeCount: number
+}
+
+export interface TradeStatistics {
+  totalRealizedPnL: number
+  winCount: number
+  lossCount: number
+  winRate: number              // 0~100
+  avgGain: number                // 獲利交易的平均獲利（僅計正值交易）
+  avgLoss: number                // 虧損交易的平均虧損（僅計負值交易，為負數或 0）
+  avgHoldingDays: number | null
+  maxGain: { code: string; name: string; amount: number } | null
+  maxLoss: { code: string; name: string; amount: number } | null
+  byYear: YearlyTradeSummary[]
+}

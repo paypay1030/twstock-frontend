@@ -6,8 +6,10 @@ import type { TradeRecord, TradeType, AnalysisResponse, HoldingStats } from '@/t
 // LocalStorage Key 常數（固定不變，部署後資料不遺失）
 // ════════════════════════════════════════════════════════════
 export const STORAGE_KEYS = {
-  trades:   'twstock_transactions_v1',
-  settings: 'twstock_settings_v1',
+  trades:     'twstock_transactions_v1',
+  settings:   'twstock_settings_v1',
+  dividends:  'twstock_dividends_v1',
+  watchlist:  'twstock_watchlist_v1',
 } as const
 
 // ════════════════════════════════════════════════════════════
@@ -117,8 +119,14 @@ export function suggestTradeType(
   return shares <= 0 ? 'sell' : 'reduce'
 }
 
+import { calcFee, calcTax } from '@/lib/fee-calculator'
+
 // ════════════════════════════════════════════════════════════
 // 持股統計計算（純函數）
+//
+// 重要：realizedPnL 採「實際獲利」模式（非帳面獲利）
+//   已實現損益 = 賣出實際回收（扣手續費+證交稅）
+//              − 買進實際成本（含買進手續費，FIFO 配對）
 // ════════════════════════════════════════════════════════════
 export function calcHoldingStats(
   code: string,
@@ -129,33 +137,61 @@ export function calcHoldingStats(
   const sorted = [...trades.filter(t => t.code === code)]
     .sort((a, b) => a.date.localeCompare(b.date))
 
+  // 推導商品類型：取最近一筆有標記 instrumentType 的交易紀錄，缺省視為股票
+  const instrumentType = [...sorted].reverse().find(t => t.instrumentType)?.instrumentType ?? 'stock'
+
   let currentShares  = 0
-  let totalCostBasis = 0
-  let realizedPnL    = 0
-  const fifo: { price: number; shares: number }[] = []
+  let totalCostBasis = 0      // 含買進手續費的實際成本基礎（FIFO 佇列用）
+  let realizedPnL    = 0      // 實際獲利（已扣買賣雙邊費稅）
+  // FIFO 佇列：每筆記錄「實際單位成本」= 買進價 + 買進手續費攤銷後的每股成本
+  const fifo: { unitCost: number; shares: number }[] = []
 
   for (const t of sorted) {
     const isBuy = t.type === 'buy' || t.type === 'add'
+
     if (isBuy) {
+      const grossAmount = t.price * t.shares
+      const buyFee      = calcFee(grossAmount)              // 買進手續費（已折扣）
+      const actualCost  = grossAmount + buyFee               // 實際投入成本
+      const unitCost    = t.shares > 0 ? actualCost / t.shares : 0
+
       currentShares  += t.shares
-      totalCostBasis += t.price * t.shares
-      fifo.push({ price: t.price, shares: t.shares })
+      totalCostBasis += actualCost
+      fifo.push({ unitCost, shares: t.shares })
     } else {
+      // 賣出/減碼：先算這筆賣出的實際回收（扣手續費+證交稅）
+      const sellGross = t.price * t.shares
+      const sellFee    = calcFee(sellGross)
+      const sellTax    = calcTax(sellGross, instrumentType)
+      const sellNet    = sellGross - sellFee - sellTax        // 實際到手金額
+
       let toSell = t.shares
       currentShares -= t.shares
+
+      // FIFO 配對：依比例分攤這筆賣出的「實際回收」到每個被消耗的批次
+      // （手續費/稅是整筆計算，依股數比例分攤至各批次以求出該批次的實際獲利）
+      const netPerShare = t.shares > 0 ? sellNet / t.shares : 0
+
       while (toSell > 0 && fifo.length > 0) {
         const head = fifo[0]
         const sold = Math.min(head.shares, toSell)
-        realizedPnL  += (t.price - head.price) * sold
-        head.shares  -= sold
-        toSell       -= sold
+
+        const costForSold = head.unitCost * sold        // 這批次被賣出股數的實際成本
+        const recoverForSold = netPerShare * sold         // 這批次被賣出股數的實際回收（已分攤費稅）
+        realizedPnL += recoverForSold - costForSold
+
+        head.shares -= sold
+        toSell      -= sold
         if (head.shares <= 0) fifo.shift()
       }
-      totalCostBasis = fifo.reduce((s, b) => s + b.price * b.shares, 0)
+
+      // 重算剩餘持股的成本基礎（供 avgCost 顯示用，仍是「含買進手續費」的實際成本）
+      totalCostBasis = fifo.reduce((s, b) => s + b.unitCost * b.shares, 0)
     }
   }
 
   const safeShares = Math.max(currentShares, 0)
+  // avgCost：實際平均成本（含買進手續費攤銷），供「我的買進成本」顯示
   const avgCost    = safeShares > 0 ? totalCostBasis / safeShares : 0
   const buys       = sorted.filter(t => t.type === 'buy' || t.type === 'add')
   const sells      = sorted.filter(t => t.type === 'sell' || t.type === 'reduce')
@@ -189,6 +225,7 @@ export function calcHoldingStats(
     latestSellDate:       sells.at(-1)?.date  ?? null,
     totalInvested:        Math.round(totalCostBasis),
     realizedPnL:          Math.round(realizedPnL),
+    instrumentType,
     currentPrice,
     currentValue:         currentValueField,
     unrealizedPnL:        unrealizedPnLField,
@@ -216,31 +253,108 @@ export const useAnalysisStore = create<AnalysisStore>()((set, get) => ({
 // 設定 Store
 // ════════════════════════════════════════════════════════════
 interface SettingsStore {
+  totalFund: number   // Phase 2.5：總資金，使用者手動輸入，用於計算現金部位
   trimRules: {
     near_resist:   number
     in_resist:     number
     fail_breakout: number
     break_support: number
   }
+  setTotalFund: (amount: number) => void
   setTrimRules: (r: Partial<SettingsStore['trimRules']>) => void
 }
 
 export const useSettingsStore = create<SettingsStore>()(
   persist(
     (set) => ({
+      totalFund: 0,
       trimRules: {
         near_resist:   0.20,
         in_resist:     0.30,
         fail_breakout: 0.50,
         break_support: 1.00,
       },
+      setTotalFund: (amount) => set({ totalFund: Math.max(0, amount) }),
       setTrimRules: (r) => set(s => ({ trimRules: { ...s.trimRules, ...r } })),
     }),
     {
       name:    STORAGE_KEYS.settings,
       storage: createJSONStorage(() => localStorage),
       version: 1,
-      migrate: (persisted: any) => persisted,
+      // version 不同或缺少 totalFund 時，補上預設值 0，不清空既有 trimRules
+      migrate: (persisted: any) => ({
+        totalFund: persisted?.totalFund ?? 0,
+        trimRules: persisted?.trimRules ?? {
+          near_resist: 0.20, in_resist: 0.30, fail_breakout: 0.50, break_support: 1.00,
+        },
+      }),
+    }
+  )
+)
+
+// ════════════════════════════════════════════════════════════
+// 股息紀錄 Store（Phase 2.5）
+// ════════════════════════════════════════════════════════════
+import type { DividendRecord, WatchlistItem } from '@/types'
+
+interface DividendStore {
+  dividends: DividendRecord[]
+  addDividend:    (d: Omit<DividendRecord, 'id'>) => void
+  updateDividend: (id: string, d: Partial<DividendRecord>) => void
+  deleteDividend: (id: string) => void
+}
+
+export const useDividendStore = create<DividendStore>()(
+  persist(
+    (set) => ({
+      dividends: [],
+      addDividend: (d) => set(s => ({
+        dividends: [{ ...d, id: crypto.randomUUID() }, ...s.dividends],
+      })),
+      updateDividend: (id, d) => set(s => ({
+        dividends: s.dividends.map(x => x.id === id ? { ...x, ...d } : x),
+      })),
+      deleteDividend: (id) => set(s => ({
+        dividends: s.dividends.filter(x => x.id !== id),
+      })),
+    }),
+    {
+      name:    STORAGE_KEYS.dividends,
+      storage: createJSONStorage(() => localStorage),
+      version: 1,
+      migrate: (persisted: any) => ({ dividends: persisted?.dividends ?? [] }),
+    }
+  )
+)
+
+// ════════════════════════════════════════════════════════════
+// 自選股 Store（Phase 2.5）
+// ════════════════════════════════════════════════════════════
+interface WatchlistStore {
+  watchlist: WatchlistItem[]
+  addWatch:    (w: Omit<WatchlistItem, 'id'>) => void
+  removeWatch: (id: string) => void
+  isWatched:   (code: string) => boolean
+}
+
+export const useWatchlistStore = create<WatchlistStore>()(
+  persist(
+    (set, get) => ({
+      watchlist: [],
+      addWatch: (w) => set(s => {
+        if (s.watchlist.some(x => x.code === w.code)) return s   // 避免重複加入
+        return { watchlist: [{ ...w, id: crypto.randomUUID() }, ...s.watchlist] }
+      }),
+      removeWatch: (id) => set(s => ({
+        watchlist: s.watchlist.filter(x => x.id !== id),
+      })),
+      isWatched: (code) => get().watchlist.some(x => x.code === code),
+    }),
+    {
+      name:    STORAGE_KEYS.watchlist,
+      storage: createJSONStorage(() => localStorage),
+      version: 1,
+      migrate: (persisted: any) => ({ watchlist: persisted?.watchlist ?? [] }),
     }
   )
 )

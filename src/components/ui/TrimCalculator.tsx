@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import type { HoldingStats } from '@/types'
+import type { HoldingStats, InstrumentType } from '@/types'
 import { useSettingsStore } from '@/stores'
 import { useUIStore } from '@/stores/ui'
+import { calcSellProfit } from '@/lib/fee-calculator'
 
 interface Props {
   stats: HoldingStats
@@ -12,6 +13,7 @@ interface Props {
   resistLevel2?: number | null   // 第二壓力下緣（突破失敗目標）
   supportLevel1?: number | null  // 第一支撐上緣（跌破目標）
   stopLoss?: number | null       // 後端建議停損價（跌破買點區的備援來源）
+  instrumentType?: InstrumentType // 股票或 ETF，決定證交稅率；缺省視為股票
 }
 
 const fmt = (n: number) => Math.round(n).toLocaleString('zh-TW')
@@ -62,6 +64,7 @@ export default function TrimCalculator({
   resistLevel2 = null,
   supportLevel1 = null,
   stopLoss = null,
+  instrumentType = 'stock',
 }: Props) {
   const { trimRules } = useSettingsStore()
   const { techMode }  = useUIStore()
@@ -299,6 +302,54 @@ export default function TrimCalculator({
           )}
         </div>
       </div>
+
+      {/* ── 真實獲利明細（以自訂比例的賣出股數為基準）────────── */}
+      {custom.sellShares > 0 && (() => {
+        const detail = calcSellProfit(currentPrice, custom.sellShares, stats.avgCost, instrumentType)
+        const isProfit = detail.realProfit >= 0
+        return (
+          <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
+            <div className="px-4 py-2.5 bg-stone-50 border-b border-stone-100 flex items-center justify-between">
+              <span className="text-xs font-bold text-stone-600">
+                {techMode ? '真實獲利明細' : '實際到手金額試算'}
+              </span>
+              <span className="text-[10px] text-stone-400">
+                {instrumentType === 'etf' ? 'ETF 證交稅 1‰' : '股票證交稅 3‰'}
+              </span>
+            </div>
+            <div className="px-4 py-3 space-y-2">
+              {[
+                { l: '成交金額',              v: `$${fmt(detail.grossAmount)}`,   cls: 'text-stone-700' },
+                { l: '買進成本（含費）',       v: `$${fmt(detail.buyCostBasis)}`,  cls: 'text-stone-700' },
+                { l: '手續費（1.425‰ × 6折）', v: `-$${fmt(detail.fee)}`,          cls: 'text-stone-400' },
+                { l: '證交稅',                v: `-$${fmt(detail.tax)}`,          cls: 'text-stone-400' },
+              ].map(({ l, v, cls }) => (
+                <div key={l} className="flex justify-between text-xs">
+                  <span className="text-stone-400">{l}</span>
+                  <span className={`font-semibold ${cls}`}>{v}</span>
+                </div>
+              ))}
+              <div className="h-px bg-stone-100 my-1" />
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-bold text-stone-600">
+                  {techMode ? '實際回收' : '實際拿到的錢'}
+                </span>
+                <span className="text-base font-extrabold text-stone-900">
+                  ${fmt(detail.netRecover)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-bold text-stone-600">
+                  {techMode ? '實際獲利' : '實際賺/賠多少'}
+                </span>
+                <span className={`text-base font-extrabold ${isProfit ? 'text-red-500' : 'text-emerald-600'}`}>
+                  {isProfit ? '+' : ''}{fmt(detail.realProfit)}
+                </span>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       <p className="text-[10px] text-stone-300 text-center leading-relaxed">
         以上試算供參考，實際執行請依市場情況判斷。

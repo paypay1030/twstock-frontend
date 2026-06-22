@@ -2,13 +2,221 @@
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
-import { useTradeStore } from '@/stores'
+import { useTradeStore, useDividendStore } from '@/stores'
 import { useUIStore } from '@/stores/ui'
-import type { TradeRecord, TradeType } from '@/types'
+import type { TradeRecord, TradeType, InstrumentType } from '@/types'
 import { TRADE_META, CONFIDENCE_META } from '@/types'
+import { calcTradeStatistics } from '@/lib/trade-stats'
+import { calcTotalDividendIncome } from '@/lib/dividend-stats'
+import { calcTotalReturn } from '@/lib/fee-calculator'
 
 // ── 工具 ─────────────────────────────────────────────────────
 const fmt = (n: number) => Math.round(n).toLocaleString('zh-TW')
+const fmtSign = (n: number) => `${n >= 0 ? '+' : ''}${fmt(n)}`
+const pnlCls = (n: number) => n > 0 ? 'text-red-500' : n < 0 ? 'text-emerald-600' : 'text-stone-400'
+
+// ── 統計總覽卡 ───────────────────────────────────────────────
+function TradeStatsOverview() {
+  const { trades } = useTradeStore()
+  const { dividends } = useDividendStore()
+  const { techMode } = useUIStore()
+
+  // 由交易紀錄自行推導各股票的 instrumentType（缺省 stock）
+  const instrumentTypeMap = useMemo(() => {
+    const m: Record<string, InstrumentType> = {}
+    for (const t of trades) {
+      if (t.instrumentType) m[t.code] = t.instrumentType
+    }
+    return m
+  }, [trades])
+
+  const stats = useMemo(
+    () => calcTradeStatistics(trades, instrumentTypeMap),
+    [trades, instrumentTypeMap]
+  )
+
+  const dividendIncome = useMemo(() => calcTotalDividendIncome(dividends), [dividends])
+
+  // 未實現損益：彙總所有目前持股的帳面損益（沿用既有 HoldingStats 邏輯，
+  // 但此頁不主動抓現價以避免與持股管理頁重複發送大量 API 請求；
+  // 顯示已實現/股息為主，未實現引導至持股管理頁查看即時數字）
+  const totalReturn = calcTotalReturn(stats.totalRealizedPnL, 0, dividendIncome)
+
+  // 交易類型次數
+  const typeCounts = useMemo(() => ({
+    buy:    trades.filter(t => t.type === 'buy').length,
+    add:    trades.filter(t => t.type === 'add').length,
+    reduce: trades.filter(t => t.type === 'reduce').length,
+    sell:   trades.filter(t => t.type === 'sell').length,
+  }), [trades])
+
+  return (
+    <div className="space-y-3">
+      {/* 交易次數統計 */}
+      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4">
+        <div className="text-xs font-extrabold text-stone-700 mb-3">
+          {techMode ? '交易次數統計' : '我做了幾次交易？'}
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          {[
+            { key: 'buy',    label: techMode ? '買進' : '建倉', count: typeCounts.buy,    color: 'text-red-600 bg-red-50' },
+            { key: 'add',    label: techMode ? '加碼' : '加買', count: typeCounts.add,    color: 'text-orange-600 bg-orange-50' },
+            { key: 'reduce', label: techMode ? '減碼' : '減少', count: typeCounts.reduce, color: 'text-teal-600 bg-teal-50' },
+            { key: 'sell',   label: techMode ? '賣出' : '清倉', count: typeCounts.sell,   color: 'text-emerald-600 bg-emerald-50' },
+          ].map(({ key, label, count, color }) => (
+            <div key={key} className={`rounded-xl p-2.5 text-center ${color}`}>
+              <div className="text-lg font-extrabold leading-tight">{count}</div>
+              <div className="text-[10px] font-semibold mt-0.5">{label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 真正總報酬 */}
+      <div className="bg-gradient-to-br from-stone-800 to-stone-900 rounded-2xl p-4 shadow-md">
+        <div className="text-[10px] text-stone-400 font-bold tracking-widest mb-3">
+          {techMode ? '真正總報酬' : '我真正賺了多少？'}
+        </div>
+        <div className="grid grid-cols-3 gap-3 mb-3">
+          <div className="text-center">
+            <div className="text-[9px] text-stone-500 mb-1 font-medium">
+              {techMode ? '已實現損益' : '已落袋'}
+            </div>
+            <div className={`text-sm font-extrabold leading-tight ${
+              stats.totalRealizedPnL >= 0 ? 'text-red-400' : 'text-emerald-400'
+            }`}>
+              {fmtSign(stats.totalRealizedPnL)}
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-[9px] text-stone-500 mb-1 font-medium">
+              {techMode ? '股息收入' : '領到股息'}
+            </div>
+            <div className="text-sm font-extrabold text-emerald-400 leading-tight">
+              +{fmt(dividendIncome)}
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-[9px] text-stone-500 mb-1 font-medium">未實現損益</div>
+            <div className="text-sm font-extrabold text-stone-400 leading-tight">
+              <Link href="/portfolio" className="underline decoration-dotted">查看 →</Link>
+            </div>
+          </div>
+        </div>
+        <div className="pt-3 border-t border-stone-700 flex justify-between items-center">
+          <span className="text-xs text-stone-400">
+            {techMode ? '已實現 + 股息（未含未實現）' : '已落袋 + 股息（未含目前持股損益）'}
+          </span>
+          <span className={`text-lg font-extrabold ${
+            totalReturn.totalReturn >= 0 ? 'text-red-400' : 'text-emerald-400'
+          }`}>
+            {fmtSign(totalReturn.totalReturn)}
+          </span>
+        </div>
+      </div>
+
+      {/* 交易表現 */}
+      {stats.winCount + stats.lossCount > 0 ? (
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4">
+          <div className="text-xs font-extrabold text-stone-700 mb-3">
+            {techMode ? '交易表現' : '我的勝率如何？'}
+          </div>
+
+          {/* 勝率視覺化 */}
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex-1">
+              <div className="flex justify-between text-[10px] text-stone-400 mb-1">
+                <span>勝率 {stats.winRate}%</span>
+                <span>{stats.winCount} 勝 / {stats.lossCount} 敗</span>
+              </div>
+              <div className="h-2.5 bg-red-100 rounded-full overflow-hidden flex">
+                <div
+                  className="h-full bg-emerald-400"
+                  style={{ width: `${stats.winRate}%` }}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <div className="bg-red-50 rounded-xl p-2.5 text-center">
+              <div className="text-[10px] text-red-400 mb-0.5">
+                {techMode ? '平均獲利' : '賺的時候平均賺多少'}
+              </div>
+              <div className="text-sm font-extrabold text-red-600">+{fmt(stats.avgGain)}</div>
+            </div>
+            <div className="bg-emerald-50 rounded-xl p-2.5 text-center">
+              <div className="text-[10px] text-emerald-500 mb-0.5">
+                {techMode ? '平均虧損' : '賠的時候平均賠多少'}
+              </div>
+              <div className="text-sm font-extrabold text-emerald-600">{fmt(stats.avgLoss)}</div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            {stats.maxGain && (
+              <div className="bg-stone-50 rounded-xl p-2.5">
+                <div className="text-[10px] text-stone-400 mb-0.5">
+                  {techMode ? '最大獲利' : '最賺的一筆'}
+                </div>
+                <div className="text-sm font-extrabold text-red-500">+{fmt(stats.maxGain.amount)}</div>
+                <div className="text-[10px] text-stone-400 mt-0.5">{stats.maxGain.name}</div>
+              </div>
+            )}
+            {stats.maxLoss && (
+              <div className="bg-stone-50 rounded-xl p-2.5">
+                <div className="text-[10px] text-stone-400 mb-0.5">
+                  {techMode ? '最大虧損' : '最賠的一筆'}
+                </div>
+                <div className="text-sm font-extrabold text-emerald-600">{fmt(stats.maxLoss.amount)}</div>
+                <div className="text-[10px] text-stone-400 mt-0.5">{stats.maxLoss.name}</div>
+              </div>
+            )}
+          </div>
+
+          {stats.avgHoldingDays !== null && (
+            <div className="mt-2 flex items-center justify-between px-1">
+              <span className="text-[10px] text-stone-400">
+                {techMode ? '平均持有天數' : '平均放多久才賣'}
+              </span>
+              <span className="text-xs font-bold text-stone-600">{stats.avgHoldingDays} 天</span>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 text-center">
+          <p className="text-xs text-stone-400">
+            {techMode ? '尚無已實現交易，賣出後將顯示勝率統計' : '還沒賣出過股票，賣出後這裡會顯示你的勝率'}
+          </p>
+        </div>
+      )}
+
+      {/* 年度統計 */}
+      {stats.byYear.length > 0 && (
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 bg-stone-50 border-b border-stone-100">
+            <span className="text-xs font-extrabold text-stone-700">
+              {techMode ? '年度已實現損益' : '每年賺賠多少'}
+            </span>
+          </div>
+          <div className="divide-y divide-stone-50">
+            {stats.byYear.map(y => (
+              <div key={y.year} className="flex justify-between items-center px-4 py-3">
+                <div>
+                  <span className="text-sm font-bold text-stone-800">{y.year} 年</span>
+                  <span className="text-[10px] text-stone-400 ml-2">{y.tradeCount} 筆</span>
+                </div>
+                <span className={`text-sm font-extrabold ${pnlCls(y.realizedPnL)}`}>
+                  {fmtSign(y.realizedPnL)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ── 單筆交易 Timeline Item ───────────────────────────────────
 function TimelineItem({
@@ -210,14 +418,6 @@ export default function TradesPage() {
   const totalTrades = trades.length
   const stockCount  = Object.keys(byCode).length
 
-  // 全域統計
-  const stats = useMemo(() => ({
-    buy:    trades.filter(t => t.type === 'buy').length,
-    add:    trades.filter(t => t.type === 'add').length,
-    reduce: trades.filter(t => t.type === 'reduce').length,
-    sell:   trades.filter(t => t.type === 'sell').length,
-  }), [trades])
-
   const FILTERS: { key: 'all' | TradeType; label: string }[] = [
     { key: 'all',    label: '全部' },
     { key: 'buy',    label: techMode ? '買進' : '建倉' },
@@ -256,40 +456,27 @@ export default function TradesPage() {
     <div className="min-h-screen bg-[#F7F5F3]">
       <div className="max-w-lg mx-auto px-4 py-5 space-y-4">
 
-        {/* 標題 + 統計 */}
+        {/* 標題 + 簡要摘要 */}
         <div>
           <h1 className="text-xl font-extrabold text-stone-800 mb-3">
             {techMode ? '所有交易紀錄' : '我的交易紀錄'}
           </h1>
 
-          {/* 統計卡 */}
-          <div className="bg-white rounded-2xl border border-stone-100 shadow-sm px-4 py-3">
-            <div className="flex items-center gap-4 mb-3">
-              <div>
-                <span className="text-2xl font-extrabold text-stone-900">{totalTrades}</span>
-                <span className="text-xs text-stone-400 ml-1">筆</span>
-              </div>
-              <div className="w-px h-8 bg-stone-100" />
-              <div>
-                <span className="text-2xl font-extrabold text-stone-900">{stockCount}</span>
-                <span className="text-xs text-stone-400 ml-1">檔股票</span>
-              </div>
+          <div className="bg-white rounded-2xl border border-stone-100 shadow-sm px-4 py-3 flex items-center gap-4">
+            <div>
+              <span className="text-2xl font-extrabold text-stone-900">{totalTrades}</span>
+              <span className="text-xs text-stone-400 ml-1">筆</span>
             </div>
-            {/* 型別分布 */}
-            <div className="flex gap-2 flex-wrap">
-              {([
-                { type: 'buy',    count: stats.buy,    color: 'bg-red-100 text-red-600' },
-                { type: 'add',    count: stats.add,    color: 'bg-orange-100 text-orange-600' },
-                { type: 'reduce', count: stats.reduce, color: 'bg-teal-100 text-teal-600' },
-                { type: 'sell',   count: stats.sell,   color: 'bg-emerald-100 text-emerald-600' },
-              ] as const).filter(x => x.count > 0).map(({ type, count, color }) => (
-                <span key={type} className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${color}`}>
-                  {TRADE_META[type].label} {count}
-                </span>
-              ))}
+            <div className="w-px h-8 bg-stone-100" />
+            <div>
+              <span className="text-2xl font-extrabold text-stone-900">{stockCount}</span>
+              <span className="text-xs text-stone-400 ml-1">檔股票</span>
             </div>
           </div>
         </div>
+
+        {/* 完整統計總覽：交易次數 / 真正總報酬 / 勝率 / 年度統計 */}
+        <TradeStatsOverview />
 
         {/* 篩選器 */}
         <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
