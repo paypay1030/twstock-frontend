@@ -8,8 +8,11 @@ export interface StockBasic {
   _mock?: boolean; _warning?: string
 }
 export interface KLine {
-  date: string; open: number; high: number; low: number; close: number; volume: number
-  ma20: number | null; ma60: number | null; ma120: number | null; ma240: number | null
+  date: string
+  open: number | null; high: number | null; low: number | null
+  close: number | null; volume: number
+  ma20: number | null; ma60: number | null
+  ma120: number | null; ma240: number | null
 }
 export interface SRLevel {
   rank: number; range_low: number; range_high: number

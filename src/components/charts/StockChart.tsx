@@ -63,12 +63,17 @@ export default function StockChart({
         wickDownColor:    '#16A34A',
       })
 
-      const candleData = klines.map(k => ({
+      // 過濾掉 OHLC 任一欄位為 null 的 K 線（ETF 部分歷史資料可能不完整）
+      const validKlines = klines.filter(
+        k => k.open !== null && k.high !== null && k.low !== null && k.close !== null
+      )
+
+      const candleData = validKlines.map(k => ({
         time:  k.date as any,
-        open:  k.open,
-        high:  k.high,
-        low:   k.low,
-        close: k.close,
+        open:  k.open  as number,
+        high:  k.high  as number,
+        low:   k.low   as number,
+        close: k.close as number,
       }))
       candleSeries.setData(candleData)
 
@@ -134,10 +139,10 @@ export default function StockChart({
         scaleMargins:       { top: 0.85, bottom: 0 },
       })
 
-      volumeSeries.setData(klines.map(k => ({
+      volumeSeries.setData(validKlines.map(k => ({
         time:  k.date as any,
         value: k.volume,
-        color: k.close >= k.open ? '#FECACA' : '#BBF7D0',
+        color: (k.close ?? 0) >= (k.open ?? 0) ? '#FECACA' : '#BBF7D0',
       })))
 
       // 響應式寬度

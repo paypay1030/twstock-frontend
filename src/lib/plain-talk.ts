@@ -23,7 +23,7 @@ export const SIGNAL_PLAIN: Record<SignalColor, {
     emoji: '🟢',
     label: '現在看起來便宜',
     badge: '可留意布局',
-    headDesc: '目前股價接近歷史低點，想買的人可以開始注意了。',
+    headDesc: '目前股價接近近期支撐區，是相對便宜的位置，可以開始留意。',
     sigCls: 'border-emerald-300 bg-emerald-50 text-emerald-700',
     techLabel: '綠燈｜接近支撐區',
   },
@@ -37,9 +37,9 @@ export const SIGNAL_PLAIN: Record<SignalColor, {
   },
   orange: {
     emoji: '🟠',
-    label: '快到高點了',
-    badge: '可考慮賣一部分',
-    headDesc: '股價接近歷史賣點區，獲利的人開始想賣了，要留意。',
+    label: '接近壓力區，留意賣壓',
+    badge: '留意賣壓',
+    headDesc: '股價接近近期壓力區，可留意是否出現賣壓，上漲空間縮小。',
     sigCls: 'border-orange-300 bg-orange-50 text-orange-700',
     techLabel: '橘燈｜接近壓力區',
   },
@@ -47,13 +47,21 @@ export const SIGNAL_PLAIN: Record<SignalColor, {
     emoji: '🔴',
     label: '要注意，風險升高',
     badge: '注意風險',
-    headDesc: '股價跌破了重要位置，風險升高，請評估是否需要賣出。',
+    headDesc: '股價跌破了重要支撐，風險升高，請評估是否需要調整策略。',
     sigCls: 'border-red-300 bg-red-50 text-red-700',
     techLabel: '紅燈｜跌破支撐',
   },
 }
 
 // ── 一句話決策 ────────────────────────────────────────────────
+// 設計原則（重要）：
+//   分析頁不知道使用者是否持股或是否獲利，hasHolding=false 時
+//   所有文案必須保持「中性觀察」語氣，不得假設持股狀態。
+//   不得使用：鎖定獲利、已有獲利、可以先賣、賺了多少等字眼。
+//   只有 hasHolding=true（持股頁）才能給持股相關建議。
+//
+//   nearestResist 是演算法計算的「壓力位」（Volume Profile / 均線 / 歷史高低），
+//   不等於「歷史最高點」，文案必須說「壓力區」「近期高點」，不得說「歷史高點」。
 export function generateOneLiner(
   color: SignalColor,
   hasHolding: boolean,
@@ -62,41 +70,48 @@ export function generateOneLiner(
   nearestSupport: number | null,
   nearestResist: number | null,
 ): { action: string; reason: string; techHint: string } {
-  const sup = nearestSupport
-  const res = nearestResist
-
   if (color === 'red') {
     return {
       action: hasHolding ? '考慮賣出，保護資金' : '先不要買',
-      reason: `${stockName}跌破了重要的低點位置，繼續跌的機率提高。如果有買進，請認真評估是否要賣出。`,
+      reason: hasHolding
+        ? `${stockName}跌破了重要的低點位置，繼續跌的機率提高。請認真評估是否要賣出。`
+        : `${stockName}跌破了重要的低點位置，目前走勢偏弱，建議等待止跌訊號再考慮進場。`,
       techHint: '技術說法：紅燈 · 跌破支撐 · 風險升高',
     }
   }
+
   if (color === 'orange') {
+    // ⚠️ nearestResist 是「壓力位」，不是歷史最高點，文案不可說「歷史高點」
+    const resistDesc = nearestResist ? `${nearestResist} 元附近的壓力區` : '近期壓力區'
     return {
-      action: hasHolding ? '可以先賣掉一部分' : '現在偏貴，先不追',
-      reason: `${stockName}股價${res ? `已接近 ${res} 元的歷史高點` : '接近歷史賣點區'}，上漲空間變小。${hasHolding ? '可以先賣一部分，鎖定獲利。' : '現在買進風險比較大。'}`,
+      // 無持股：只說市場狀況，不假設獲利
+      action: hasHolding ? '留意是否要減少部分持股' : '現在偏貴，先觀察',
+      reason: hasHolding
+        ? `${stockName}股價接近${resistDesc}，上漲空間縮小，可留意是否出現賣壓，考慮減少部分持股。`
+        : `${stockName}股價接近${resistDesc}，可留意是否出現賣壓。現在追高的風險比較大，可等待回落後再評估。`,
       techHint: '技術說法：橘燈 · 接近壓力區 · 考慮減碼',
     }
   }
+
   if (color === 'green') {
     return {
       action: hasHolding ? '可以考慮再買一點' : '可以考慮少量買進',
-      reason: `${stockName}股價${sup ? `接近 ${sup} 元的歷史低點` : '來到相對便宜的位置'}，這個價位風險比較小。建議分批買進，不要一次全押。`,
+      reason: `${stockName}股價${nearestSupport ? `接近 ${nearestSupport} 元的支撐區` : '來到相對便宜的位置'}，這個價位風險比較小。建議分批買進，不要一次全押。`,
       techHint: '技術說法：綠燈 · 接近支撐區 · 可考慮布局',
     }
   }
+
   // yellow
   if (hasHolding) {
     return {
       action: '繼續持有，不用動',
-      reason: `${stockName}股價在高低點中間，還不到要賣或再買的時機。耐心等候更好的機會。`,
+      reason: `${stockName}股價在支撐與壓力中間，還不到要賣或再買的時機。耐心等候更好的機會。`,
       techHint: '技術說法：黃燈 · 區間整理 · 續抱',
     }
   }
   return {
     action: '先觀察，再等等',
-    reason: `${stockName}現在不算特別便宜也不算貴，不是最好的買進時機。等股價跌到便宜區再考慮。`,
+    reason: `${stockName}現在不算特別便宜也不算貴，不是最好的買進時機。等股價跌到支撐區再考慮。`,
     techHint: '技術說法：黃燈 · 區間整理 · 觀察等待',
   }
 }
@@ -182,26 +197,35 @@ export function generateAISections(
   const riskText = { low: '不大', medium: '中等', high: '偏高' }[riskLevel]
 
   const situation = color === 'green'
-    ? `${stockName}的股價現在來到了相對便宜的位置${nearestSupport ? `（${nearestSupport} 元附近）` : ''}，歷史上在這個價位附近，買進的人比賣出的人多，股價比較容易止跌反彈。`
+    ? `${stockName}的股價現在來到了相對便宜的位置${nearestSupport ? `（${nearestSupport} 元附近的支撐區）` : ''}，歷史上在這個價位附近，買進的人比賣出的人多，股價比較容易止跌反彈。`
     : color === 'orange'
-    ? `${stockName}的股價正在接近歷史上大家常常選擇賣出的位置${nearestResist ? `（${nearestResist} 元附近）` : ''}。這個區域賣壓比較重，股價繼續上漲的空間變小了。`
+    ? `${stockName}的股價正在接近${nearestResist ? `${nearestResist} 元附近的壓力區` : '近期壓力區'}。這個區域賣壓比較重，股價繼續上漲的空間縮小了。`
     : color === 'red'
-    ? `${stockName}的股價跌破了一個重要的低點位置，這是一個警訊。歷史上跌破這個位置之後，繼續下跌的機率比較高。`
-    : `${stockName}的股價目前在高點和低點的中間，沒有特別偏高或偏低。這種情況下，市場在「等待方向」，通常需要一段時間觀察才會有比較明顯的訊號。`
+    ? `${stockName}的股價跌破了一個重要的支撐位置，這是一個警訊。歷史上跌破這個位置之後，繼續下跌的機率比較高。`
+    : `${stockName}的股價目前在支撐與壓力之間，沒有特別偏高或偏低。這種情況下，市場在「等待方向」，通常需要一段時間觀察才會有比較明顯的訊號。`
 
   const riskExplain = riskLevel === 'low'
-    ? `目前風險${riskText}。股價距離歷史低點不遠，就算繼續跌，空間也相對有限。這個位置持股比較安心。`
+    ? `目前風險${riskText}。股價距離支撐區不遠，就算繼續跌，空間也相對有限。這個位置持股比較安心。`
     : riskLevel === 'high'
     ? `目前風險${riskText}，需要特別注意。${hasHolding && avgCost && price < avgCost ? `你的持股目前處於虧損狀態（成本 ${avgCost}，現價 ${price}），要考慮是否要執行停損。` : '現在進場的風險比較高，建議等待更好的時機。'}`
     : `目前風險${riskText}，不用太擔心，但也不能完全放鬆。維持正常的關注就好。`
 
+  // ⚠️ whatToDo：無持股時（hasHolding=false）不得說「賣出」「鎖定獲利」等字眼
   const whatToDo = color === 'red'
-    ? `${hasHolding ? `你已經有持股，現在最重要的是保護資金。如果跌破 ${stopLoss} 元，請認真考慮賣出，避免虧損繼續擴大。` : `現在不建議買進，等待股價止跌穩定之後再考慮。`}`
+    ? hasHolding
+      ? `你已經有持股，現在最重要的是保護資金。如果跌破 ${stopLoss} 元，請認真考慮賣出，避免虧損繼續擴大。`
+      : `現在不建議買進，等待股價止跌穩定之後再考慮進場。`
     : color === 'orange'
-    ? `${hasHolding ? `你已經有持股，可以考慮在 ${nearestResist ?? '目前位置'} 附近賣出一部分，鎖定部分獲利。剩下的可以繼續持有，等待下一個訊號。` : `現在不是好的買進時機，先觀察就好。如果後來股價跌回到便宜區${nearestSupport ? `（${nearestSupport} 附近）` : ''}，再考慮買進。`}`
+    ? hasHolding
+      ? `你已經有持股，可以考慮在${nearestResist ? ` ${nearestResist} 元` : '壓力區'}附近減少部分持股，降低風險。剩下的可以繼續持有，等待下一個訊號。`
+      : `現在不是好的買進時機，可留意是否出現賣壓。如果後來股價跌回到支撐區${nearestSupport ? `（${nearestSupport} 附近）` : ''}，再考慮買進。`
     : color === 'green'
-    ? `${hasHolding ? `你已經有持股，現在是可以考慮「加碼」的時機${nearestSupport ? `，在 ${nearestSupport} 附近可以再買一點` : ''}。記得分批買進，不要一次全押。` : `現在是相對好的買進時機${nearestSupport ? `，在 ${nearestSupport} 附近考慮買進` : ''}。建議分 2-3 次買進，降低風險。`}`
-    : `${hasHolding ? '繼續持有就好，不用急著做任何動作。' : '先觀察就好，等到股價跌到便宜區再考慮買進，不要追高。'}`
+    ? hasHolding
+      ? `你已經有持股，現在是可以考慮「加碼」的時機${nearestSupport ? `，在 ${nearestSupport} 附近可以再買一點` : ''}。記得分批買進，不要一次全押。`
+      : `現在是相對好的買進時機${nearestSupport ? `，在 ${nearestSupport} 附近考慮買進` : ''}。建議分 2-3 次買進，降低風險。`
+    : hasHolding
+    ? '繼續持有就好，不用急著做任何動作。'
+    : '先觀察就好，等到股價跌到支撐區再考慮買進，不要追高。'
 
   const watchOut = `如果股價跌破 ${stopLoss} 元，那就要認真考慮賣出了。這個價位跌破之後，繼續跌的風險很高，屆時損失可能繼續擴大。`
 

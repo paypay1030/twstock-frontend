@@ -9,6 +9,7 @@ import {
   SIGNAL_PLAIN, SR_PLAIN, RISK_PLAIN,
   generateOneLiner, generateAISections,
 } from '@/lib/plain-talk'
+import { safeFixed, safePct, safePrice, safeVal } from '@/lib/safe-display'
 import type { AnalysisResponse, KLine, SearchResult, SignalColor, SRLevel } from '@/types'
 import dynamic from 'next/dynamic'
 import MyHoldingCard from '@/components/cards/MyHoldingCard'
@@ -50,7 +51,7 @@ function SRBand({ level, dir, techMode }: { level: SRLevel; dir: 'support'|'resi
         </div>
         <div className="text-[10px] text-stone-400 mt-0.5">
           {techMode
-            ? `強度 ${level.score.toFixed(0)} · ${level.sources.join(', ')}`
+            ? `強度 ${safeFixed(level.score, 0)} · ${level.sources.join(', ')}`
             : (isSup ? SR_PLAIN.support.desc : SR_PLAIN.resistance.desc)}
         </div>
       </div>
@@ -94,34 +95,48 @@ function DecisionCard({ result, techMode, hasHolding }: {
   const res1      = card.resistance_levels[0]
   const res2      = card.resistance_levels[1]
 
-  // 四情境
+  // 四情境：無持股時用「中性觀察」語氣，不說「賣一部分」「先賣」
   const scenarios = [
     {
       icon: '📉', title: techMode ? '跌破第一支撐' : '跌到地板價以下',
       price: sup1 ? `< ${sup1.range_low}` : '—',
       action: techMode ? '觀察是否守住' : '要特別留意',
-      desc: techMode ? '支撐若不守，下方風險增加' : '跌到這裡要觀察，可能繼續跌',
+      desc: techMode
+        ? '支撐若不守，下方風險增加'
+        : '跌到這裡要觀察，可能繼續跌',
       cls: 'bg-yellow-50 border-yellow-200 text-yellow-800',
     },
     {
-      icon: '🔝', title: techMode ? '接近第一壓力' : '快到天花板了',
+      icon: '🔝', title: techMode ? '接近第一壓力' : '快到壓力區了',
       price: res1 ? `${res1.range_low} 附近` : '—',
-      action: techMode ? '考慮減碼' : '可以賣一部分',
-      desc: techMode ? '接近壓力，風險報酬比下降' : '漲到這裡可以考慮先賣一部分',
+      action: techMode
+        ? (hasHolding ? '考慮減碼' : '留意賣壓')
+        : (hasHolding ? '可考慮減少持股' : '留意是否出現賣壓'),
+      desc: techMode
+        ? '接近壓力，風險報酬比下降'
+        : (hasHolding ? '接近壓力區，可考慮減少持股' : '接近壓力區，可留意是否出現賣壓'),
       cls: 'bg-orange-50 border-orange-200 text-orange-800',
     },
     {
       icon: '🚀', title: techMode ? '突破第二壓力' : '漲破第二關',
       price: res2 ? `> ${res2.range_high}` : '—',
-      action: techMode ? '大幅減碼或出場' : '考慮大部分出場',
-      desc: techMode ? '強壓力突破，評估獲利了結' : '漲到這麼高，建議大部分賣出',
+      action: techMode
+        ? (hasHolding ? '大幅減碼或出場' : '注意回測風險')
+        : (hasHolding ? '可考慮大部分出場' : '留意是否出現大幅回落'),
+      desc: techMode
+        ? (hasHolding ? '強壓力突破，評估獲利了結' : '強壓力區，留意回測')
+        : (hasHolding ? '漲到強壓力區，持股者可評估是否出場' : '漲到強壓力區，注意可能出現賣壓回落'),
       cls: 'bg-red-50 border-red-200 text-red-800',
     },
     {
       icon: '🛡️', title: techMode ? '跌破停損線' : '跌破最後防線',
       price: `< ${stopLoss}`,
-      action: techMode ? '執行停損' : '建議賣出',
-      desc: techMode ? '已達停損位，依計畫執行' : '跌到這裡損失可能繼續擴大',
+      action: techMode
+        ? (hasHolding ? '執行停損' : '謹慎觀察')
+        : (hasHolding ? '建議評估賣出' : '高風險，謹慎觀察'),
+      desc: techMode
+        ? (hasHolding ? '已達停損位，依計畫執行' : '重要支撐已破，風險升高')
+        : (hasHolding ? '跌到這裡損失可能繼續擴大，請認真評估' : '跌到這裡風險很高，建議謹慎觀察'),
       cls: 'bg-red-100 border-red-300 text-red-900',
     },
   ]
@@ -276,7 +291,25 @@ function AnalyzeContent() {
       <div className="max-w-lg mx-auto px-4 py-4 space-y-3">
 
         {/* 搜尋列 */}
-        <form onSubmit={e => { e.preventDefault(); const c = query.trim().split(/\s+/)[0]; if (c) runAnalysis(c) }}>
+        <form onSubmit={e => {
+          e.preventDefault()
+          const q = query.trim()
+          if (!q) return
+          // 若建議清單有結果，選第一筆（支援名稱搜尋：「台積電」→ 選 2330）
+          if (sugg.length > 0) {
+            setQuery(`${sugg[0].code} ${sugg[0].name}`)
+            runAnalysis(sugg[0].code)
+            return
+          }
+          // 若輸入是代號格式（2~6位數字+可選字母），直接查詢
+          const codeMatch = q.match(/^([0-9]{2,6}[A-Za-z]?)/)
+          if (codeMatch) {
+            runAnalysis(codeMatch[1].toUpperCase())
+            return
+          }
+          // 否則觸發一次搜尋，讓使用者從清單選擇
+          handleSearch(q)
+        }}>
           <div className="relative">
             <input value={query} onChange={e => handleSearch(e.target.value)}
               placeholder={techMode ? '輸入代號，如 6770、2330' : '輸入股票代號或名稱，例如 台積電、6770'}
@@ -331,8 +364,8 @@ function AnalyzeContent() {
                 </div>
                 <div className="text-right">
                   <div className="text-3xl font-extrabold text-stone-900 leading-none">{basic.current_price}</div>
-                  <div className={`text-sm font-bold mt-1 ${basic.change >= 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                    {basic.change >= 0 ? '+' : ''}{basic.change}（{basic.change_pct}%）
+                  <div className={`text-sm font-bold mt-1 ${(basic.change ?? 0) >= 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                    {(basic.change ?? 0) >= 0 ? '+' : ''}{safeVal(basic.change)}（{safePct(basic.change_pct)}）
                   </div>
                 </div>
               </div>
@@ -344,7 +377,7 @@ function AnalyzeContent() {
                 </span>
                 <span className="text-xs text-stone-400">·</span>
                 <span className="text-xs text-stone-400">
-                  {techMode ? '52週' : '歷史'} {basic.week52_low} ～ {basic.week52_high}
+                  {techMode ? '52週' : '歷史'} {safeVal(basic.week52_low)} ～ {safeVal(basic.week52_high)}
                 </span>
               </div>
             </div>
