@@ -1,28 +1,47 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
-import BottomNav from '@/components/layout/BottomNav'
-import GlobalHeader from '@/components/layout/GlobalHeader'
-import MigrateOnMount from '@/components/layout/MigrateOnMount'
+import NbHeader from '@/components/nb/NbHeader'
+import NbBottomNav from '@/components/nb/NbBottomNav'
+import TodayNoteProvider from '@/components/nb/TodayNoteProvider'
 
 export const metadata: Metadata = {
-  title: '我的持股管家',
-  description: '台股個人投資分析助手｜所有分析均為機率與風險評估，不保證股價走勢。',
+  title: '小本本',
+  description: '你的投資筆記',
+  manifest: '/manifest.json',
+  appleWebApp: { capable: true, statusBarStyle: 'default', title: '小本本' },
 }
+
 export const viewport: Viewport = {
-  width: 'device-width', initialScale: 1, maximumScale: 1, userScalable: false,
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover',
+  themeColor: '#FBF7F2',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh-TW">
-      <body className="font-sans antialiased bg-[#F7F5F3] text-stone-900 min-h-screen">
-        {/* 啟動時執行 LocalStorage 版本遷移 */}
-        <MigrateOnMount />
-        <GlobalHeader />
-        <main className="pb-20 pt-12 max-w-lg mx-auto">
-          {children}
-        </main>
-        <BottomNav />
+      <body className="bg-nb-bg text-nb-t0 antialiased overscroll-none">
+        {/* 全站統一 wrapper：最大寬度 + 置中 */}
+        <div className="relative min-h-screen max-w-lg mx-auto flex flex-col">
+
+        {/* ── TodayNoteProvider：App 啟動後取得 Today Note 資料 ── */}
+          <TodayNoteProvider />
+
+          {/* ── Sticky Header ── */}
+          <NbHeader />
+
+          {/* ── 頁面主內容 ── */}
+          <main className="flex-1 overflow-y-auto pb-20">
+            {children}
+          </main>
+
+          {/* ── Sticky Bottom Nav ── */}
+          <NbBottomNav />
+
+        </div>
       </body>
     </html>
   )

@@ -13,14 +13,14 @@ const TABS = [
 export default function BottomNav() {
   const path = usePathname()
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-stone-200 z-50">
+    <nav className="fixed bottom-0 left-0 right-0 bg-nb-s0/95 backdrop-blur border-t border-nb-border2 z-50">
       <div className="max-w-lg mx-auto flex">
         {TABS.map(({ href, icon, label }) => {
           const active = path === href || (href !== '/' && path.startsWith(href))
           return (
             <Link key={href} href={href}
               className={`flex-1 flex flex-col items-center py-2 gap-0.5 transition-colors ${
-                active ? 'text-amber-500' : 'text-stone-400 hover:text-stone-600'
+                active ? 'text-nb-orange' : 'text-nb-t2 hover:text-nb-t1'
               }`}
             >
               <span className="text-lg leading-none">{icon}</span>

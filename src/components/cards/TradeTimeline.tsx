@@ -25,7 +25,7 @@ function TimelineItem({ t, isLast, onDelete }: {
         <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0 ${m.badgeBg} ${m.badgeText}`}>
           {m.short}
         </div>
-        {!isLast && <div className="w-px flex-1 bg-stone-200 mt-1 mb-0 min-h-[12px]" />}
+        {!isLast && <div className="w-px flex-1 bg-nb-border mt-1 mb-0 min-h-[12px]" />}
       </div>
 
       {/* 內容 */}
@@ -37,28 +37,28 @@ function TimelineItem({ t, isLast, onDelete }: {
           <div>
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className={`text-sm font-bold ${m.textColor}`}>{t.price}</span>
-              <span className="text-xs text-stone-400">× {t.shares.toLocaleString()} 股</span>
-              <span className="text-[10px] text-stone-400 bg-white/60 px-1.5 py-0.5 rounded-full">
+              <span className="text-xs text-nb-t2">× {t.shares.toLocaleString()} 股</span>
+              <span className="text-[10px] text-nb-t2 bg-nb-s0/60 px-1.5 py-0.5 rounded-full">
                 ${amt.toLocaleString()}
               </span>
             </div>
-            {t.note && <div className="text-[11px] text-stone-400 mt-0.5 leading-snug">{t.note}</div>}
+            {t.note && <div className="text-[11px] text-nb-t2 mt-0.5 leading-snug">{t.note}</div>}
           </div>
           <div className="flex items-center gap-2 ml-2 flex-shrink-0">
             <div className="text-right">
-              <div className="text-[11px] text-stone-400">{t.date}</div>
+              <div className="text-[11px] text-nb-t2">{t.date}</div>
               {t.journal && (
                 <div className="text-[11px] mt-0.5">
                   {CONFIDENCE_META[t.journal.confidence].icon}
-                  <span className="text-stone-400 ml-0.5">{CONFIDENCE_META[t.journal.confidence].label}</span>
+                  <span className="text-nb-t2 ml-0.5">{CONFIDENCE_META[t.journal.confidence].label}</span>
                 </div>
               )}
             </div>
-            {hasJ && <span className="text-stone-300 text-[10px]">{open ? '▲' : '▼'}</span>}
+            {hasJ && <span className="text-nb-t3 text-[10px]">{open ? '▲' : '▼'}</span>}
             {onDelete && (
               <button
                 onClick={e => { e.stopPropagation(); onDelete(t.id) }}
-                className="text-stone-300 hover:text-red-400 text-xs w-5 h-5 flex items-center justify-center"
+                className="text-nb-t3 hover:text-nb-up text-xs w-5 h-5 flex items-center justify-center"
               >×</button>
             )}
           </div>
@@ -66,9 +66,9 @@ function TimelineItem({ t, isLast, onDelete }: {
 
         {/* 投資日誌 */}
         {open && t.journal && (
-          <div className="px-3 py-2.5 bg-amber-50 border-t border-amber-100">
-            <div className="text-[10px] font-bold text-amber-600 mb-1">{m.label}原因</div>
-            <div className="text-xs text-stone-600 leading-relaxed">{t.journal.reason}</div>
+          <div className="px-3 py-2.5 bg-nb-orange-bg border-t border-nb-orange/20">
+            <div className="text-[10px] font-bold text-nb-orange mb-1">{m.label}原因</div>
+            <div className="text-xs text-nb-t1 leading-relaxed">{t.journal.reason}</div>
           </div>
         )}
       </div>
@@ -80,7 +80,7 @@ export default function TradeTimeline({ trades, onDelete, maxVisible = 5 }: Prop
   const [showAll, setShowAll] = useState(false)
 
   if (trades.length === 0) {
-    return <div className="text-center py-5 text-xs text-stone-400">尚無交易紀錄</div>
+    return <div className="text-center py-5 text-xs text-nb-t2">尚無交易紀錄</div>
   }
 
   const sorted  = [...trades].sort((a,b) => b.date.localeCompare(a.date))
@@ -92,7 +92,7 @@ export default function TradeTimeline({ trades, onDelete, maxVisible = 5 }: Prop
 
   return (
     <div>
-      <div className="flex gap-3 mb-3 text-[11px] text-stone-400 flex-wrap">
+      <div className="flex gap-3 mb-3 text-[11px] text-nb-t2 flex-wrap">
         {Object.entries(counts).map(([type, count]) => (
           <span key={type}>
             <span className={`font-bold ${TRADE_META[type as keyof typeof TRADE_META]?.textColor}`}>
@@ -115,7 +115,7 @@ export default function TradeTimeline({ trades, onDelete, maxVisible = 5 }: Prop
 
       {hasMore && (
         <button onClick={() => setShowAll(!showAll)}
-          className="w-full py-2 text-xs font-medium text-amber-500"
+          className="w-full py-2 text-xs font-medium text-nb-orange"
         >
           {showAll ? '收起' : `查看全部 ${sorted.length} 筆 ▼`}
         </button>

@@ -123,9 +123,9 @@ export default function TrimCalculator({
       pct:         trimRules.near_resist,
       targetLabel: `${targets.r1} 元附近`,
       estimated:   isEstimated.r1,
-      color:       'border-amber-200 bg-amber-50',
+      color:       'border-nb-orange/30 bg-nb-orange-bg',
       labelCls:    'text-amber-700',
-      badgeCls:    'bg-amber-100 text-amber-700',
+      badgeCls:    'bg-nb-orange-bg text-amber-700',
     },
     {
       key:         'in',
@@ -170,7 +170,7 @@ export default function TrimCalculator({
 
       {/* ── 基準切換 ── */}
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs text-stone-400">計算基準：</span>
+        <span className="text-xs text-nb-t2">計算基準：</span>
         <div className="flex gap-1.5">
           {([
             { k: 'shares' as const, label: techMode ? '依股數' : '按股數算' },
@@ -182,8 +182,8 @@ export default function TrimCalculator({
               onClick={() => setBasis(k)}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all ${
                 basis === k
-                  ? 'bg-amber-400 text-white border-amber-400 shadow-sm'
-                  : 'bg-white text-stone-500 border-stone-200 hover:border-amber-300'
+                  ? 'bg-nb-orange text-white border-nb-orange shadow-nb'
+                  : 'bg-nb-s0 text-nb-t2 border-nb-border2 hover:border-nb-orange/50'
               }`}
             >
               {label}
@@ -191,7 +191,7 @@ export default function TrimCalculator({
           ))}
         </div>
         {basis === 'value' && (
-          <span className="text-[10px] text-stone-400">
+          <span className="text-[10px] text-nb-t2">
             持股總值 ${fmt(totalVal)}
           </span>
         )}
@@ -208,7 +208,7 @@ export default function TrimCalculator({
               <div className={`text-[10px] font-extrabold mb-0.5 ${s.labelCls}`}>
                 {s.label}
               </div>
-              <div className="text-[10px] text-stone-400 mb-2">{s.desc}</div>
+              <div className="text-[10px] text-nb-t2 mb-2">{s.desc}</div>
 
               {/* 目標價格（永遠顯示；若為外推估算值，加註小提示） */}
               <div className={`text-[10px] font-bold px-2 py-1 rounded-lg mb-2 inline-flex items-center gap-1 ${s.badgeCls}`}>
@@ -218,33 +218,33 @@ export default function TrimCalculator({
               </div>
 
               {/* 減碼比例 */}
-              <div className="text-[10px] text-stone-500 mb-1.5">
+              <div className="text-[10px] text-nb-t2 mb-1.5">
                 減碼 {Math.round(s.pct * 100)}%
               </div>
 
               {/* 依 basis 顯示不同內容 */}
               {basis === 'shares' ? (
                 <>
-                  <div className="text-base font-extrabold text-stone-900">
+                  <div className="text-base font-extrabold text-nb-t0">
                     賣 {fmt(d.sellShares)} 股
                   </div>
-                  <div className="text-[10px] text-stone-500 mt-1">
+                  <div className="text-[10px] text-nb-t2 mt-1">
                     回收 ${fmt(d.recover)}
                   </div>
-                  <div className="text-[10px] text-stone-400">
+                  <div className="text-[10px] text-nb-t2">
                     剩 {fmt(d.remain)} 股
                   </div>
                 </>
               ) : (
                 <>
-                  <div className="text-[10px] text-stone-500 mb-0.5">賣出金額</div>
-                  <div className="text-base font-extrabold text-stone-900">
+                  <div className="text-[10px] text-nb-t2 mb-0.5">賣出金額</div>
+                  <div className="text-base font-extrabold text-nb-t0">
                     ${fmt(d.recover)}
                   </div>
-                  <div className="text-[10px] text-stone-500 mt-1">
+                  <div className="text-[10px] text-nb-t2 mt-1">
                     約 {fmt(d.sellShares)} 股
                   </div>
-                  <div className="text-[10px] text-stone-400">
+                  <div className="text-[10px] text-nb-t2">
                     剩餘市值 ${fmt(d.remainVal)}
                   </div>
                 </>
@@ -255,10 +255,10 @@ export default function TrimCalculator({
       </div>
 
       {/* ── 自訂比例滑桿 ── */}
-      <div className="bg-stone-50 rounded-2xl border border-stone-200 p-4">
+      <div className="bg-nb-s4 rounded-2xl border border-nb-border2 p-4">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-bold text-stone-600">自訂比例試算</span>
-          <span className="text-sm font-extrabold text-stone-900 tabular-nums">
+          <span className="text-xs font-bold text-nb-t1">自訂比例試算</span>
+          <span className="text-sm font-extrabold text-nb-t0 tabular-nums">
             {Math.round(customPct * 100)}%
           </span>
         </div>
@@ -271,32 +271,32 @@ export default function TrimCalculator({
         <div className="grid grid-cols-3 gap-2 text-center">
           {basis === 'shares' ? (
             <>
-              <div className="bg-white rounded-xl p-2.5 border border-stone-100">
-                <div className="text-[10px] text-stone-400 mb-0.5">賣出股數</div>
-                <div className="text-sm font-extrabold text-stone-800">{fmt(custom.sellShares)} 股</div>
+              <div className="bg-nb-s0 rounded-xl p-2.5 border border-nb-border">
+                <div className="text-[10px] text-nb-t2 mb-0.5">賣出股數</div>
+                <div className="text-sm font-extrabold text-nb-t0">{fmt(custom.sellShares)} 股</div>
               </div>
-              <div className="bg-white rounded-xl p-2.5 border border-stone-100">
-                <div className="text-[10px] text-stone-400 mb-0.5">預估回收</div>
-                <div className="text-sm font-extrabold text-amber-600">${fmt(custom.recover)}</div>
+              <div className="bg-nb-s0 rounded-xl p-2.5 border border-nb-border">
+                <div className="text-[10px] text-nb-t2 mb-0.5">預估回收</div>
+                <div className="text-sm font-extrabold text-nb-orange">${fmt(custom.recover)}</div>
               </div>
-              <div className="bg-white rounded-xl p-2.5 border border-stone-100">
-                <div className="text-[10px] text-stone-400 mb-0.5">剩餘股數</div>
-                <div className="text-sm font-extrabold text-stone-800">{fmt(custom.remain)} 股</div>
+              <div className="bg-nb-s0 rounded-xl p-2.5 border border-nb-border">
+                <div className="text-[10px] text-nb-t2 mb-0.5">剩餘股數</div>
+                <div className="text-sm font-extrabold text-nb-t0">{fmt(custom.remain)} 股</div>
               </div>
             </>
           ) : (
             <>
-              <div className="bg-white rounded-xl p-2.5 border border-stone-100">
-                <div className="text-[10px] text-stone-400 mb-0.5">賣出金額</div>
-                <div className="text-sm font-extrabold text-amber-600">${fmt(custom.recover)}</div>
+              <div className="bg-nb-s0 rounded-xl p-2.5 border border-nb-border">
+                <div className="text-[10px] text-nb-t2 mb-0.5">賣出金額</div>
+                <div className="text-sm font-extrabold text-nb-orange">${fmt(custom.recover)}</div>
               </div>
-              <div className="bg-white rounded-xl p-2.5 border border-stone-100">
-                <div className="text-[10px] text-stone-400 mb-0.5">約賣幾股</div>
-                <div className="text-sm font-extrabold text-stone-800">{fmt(custom.sellShares)} 股</div>
+              <div className="bg-nb-s0 rounded-xl p-2.5 border border-nb-border">
+                <div className="text-[10px] text-nb-t2 mb-0.5">約賣幾股</div>
+                <div className="text-sm font-extrabold text-nb-t0">{fmt(custom.sellShares)} 股</div>
               </div>
-              <div className="bg-white rounded-xl p-2.5 border border-stone-100">
-                <div className="text-[10px] text-stone-400 mb-0.5">剩餘市值</div>
-                <div className="text-sm font-extrabold text-stone-800">${fmt(custom.remainVal)}</div>
+              <div className="bg-nb-s0 rounded-xl p-2.5 border border-nb-border">
+                <div className="text-[10px] text-nb-t2 mb-0.5">剩餘市值</div>
+                <div className="text-sm font-extrabold text-nb-t0">${fmt(custom.remainVal)}</div>
               </div>
             </>
           )}
@@ -308,41 +308,41 @@ export default function TrimCalculator({
         const detail = calcSellProfit(currentPrice, custom.sellShares, stats.avgCost, instrumentType)
         const isProfit = detail.realProfit >= 0
         return (
-          <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
-            <div className="px-4 py-2.5 bg-stone-50 border-b border-stone-100 flex items-center justify-between">
-              <span className="text-xs font-bold text-stone-600">
+          <div className="bg-nb-s0 rounded-2xl border border-nb-border2 overflow-hidden">
+            <div className="px-4 py-2.5 bg-nb-s4 border-b border-nb-border flex items-center justify-between">
+              <span className="text-xs font-bold text-nb-t1">
                 {techMode ? '真實獲利明細' : '實際到手金額試算'}
               </span>
-              <span className="text-[10px] text-stone-400">
+              <span className="text-[10px] text-nb-t2">
                 {instrumentType === 'etf' ? 'ETF 證交稅 1‰' : '股票證交稅 3‰'}
               </span>
             </div>
             <div className="px-4 py-3 space-y-2">
               {[
-                { l: '成交金額',              v: `$${fmt(detail.grossAmount)}`,   cls: 'text-stone-700' },
-                { l: '買進成本（含費）',       v: `$${fmt(detail.buyCostBasis)}`,  cls: 'text-stone-700' },
-                { l: '手續費（1.425‰ × 6折）', v: `-$${fmt(detail.fee)}`,          cls: 'text-stone-400' },
-                { l: '證交稅',                v: `-$${fmt(detail.tax)}`,          cls: 'text-stone-400' },
+                { l: '成交金額',              v: `$${fmt(detail.grossAmount)}`,   cls: 'text-nb-t1' },
+                { l: '買進成本（含費）',       v: `$${fmt(detail.buyCostBasis)}`,  cls: 'text-nb-t1' },
+                { l: '手續費（1.425‰ × 6折）', v: `-$${fmt(detail.fee)}`,          cls: 'text-nb-t2' },
+                { l: '證交稅',                v: `-$${fmt(detail.tax)}`,          cls: 'text-nb-t2' },
               ].map(({ l, v, cls }) => (
                 <div key={l} className="flex justify-between text-xs">
-                  <span className="text-stone-400">{l}</span>
+                  <span className="text-nb-t2">{l}</span>
                   <span className={`font-semibold ${cls}`}>{v}</span>
                 </div>
               ))}
-              <div className="h-px bg-stone-100 my-1" />
+              <div className="h-px bg-nb-s4 my-1" />
               <div className="flex justify-between items-center">
-                <span className="text-xs font-bold text-stone-600">
+                <span className="text-xs font-bold text-nb-t1">
                   {techMode ? '實際回收' : '實際拿到的錢'}
                 </span>
-                <span className="text-base font-extrabold text-stone-900">
+                <span className="text-base font-extrabold text-nb-t0">
                   ${fmt(detail.netRecover)}
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-xs font-bold text-stone-600">
+                <span className="text-xs font-bold text-nb-t1">
                   {techMode ? '實際獲利' : '實際賺/賠多少'}
                 </span>
-                <span className={`text-base font-extrabold ${isProfit ? 'text-red-500' : 'text-emerald-600'}`}>
+                <span className={`text-base font-extrabold ${isProfit ? 'text-nb-up' : 'text-nb-down'}`}>
                   {isProfit ? '+' : ''}{fmt(detail.realProfit)}
                 </span>
               </div>
@@ -351,7 +351,7 @@ export default function TrimCalculator({
         )
       })()}
 
-      <p className="text-[10px] text-stone-300 text-center leading-relaxed">
+      <p className="text-[10px] text-nb-t3 text-center leading-relaxed">
         以上試算供參考，實際執行請依市場情況判斷。
       </p>
     </div>

@@ -45,19 +45,19 @@ function AddWatchPanel({ onCancel }: { onCancel: () => void }) {
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4">
+    <div className="bg-nb-s0 rounded-2xl border border-nb-border shadow-nb p-4">
       <div className="flex justify-between items-center mb-3">
-        <span className="text-sm font-extrabold text-stone-700">
+        <span className="text-sm font-extrabold text-nb-t1">
           {techMode ? '新增自選股' : '加入想追蹤的股票'}
         </span>
-        <button onClick={onCancel} className="text-stone-400 text-2xl leading-none hover:text-stone-600">×</button>
+        <button onClick={onCancel} className="text-nb-t2 text-2xl leading-none hover:text-nb-t1">×</button>
       </div>
       <input
         value={q}
         onChange={e => doSearch(e.target.value)}
         placeholder="輸入代號或名稱，例如 0050、台積電"
         autoFocus
-        className="w-full h-11 px-3.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-amber-300 mb-1"
+        className="w-full h-11 px-3.5 bg-nb-s4 border border-nb-border2 rounded-xl text-sm focus:outline-none focus:border-nb-orange/50 mb-1"
       />
       <div className="space-y-0.5">
         {sugg.map(s => {
@@ -67,11 +67,11 @@ function AddWatchPanel({ onCancel }: { onCancel: () => void }) {
               key={s.code}
               onClick={() => !already && handleAdd(s)}
               disabled={already || adding === s.code}
-              className="w-full flex justify-between items-center px-3.5 py-2.5 hover:bg-stone-50 rounded-xl text-sm disabled:opacity-50"
+              className="w-full flex justify-between items-center px-3.5 py-2.5 hover:bg-nb-s4 rounded-xl text-sm disabled:opacity-50"
             >
               <div className="flex items-center gap-2">
-                <span className="font-bold text-stone-700">{s.code}</span>
-                <span className="text-stone-500">{s.name}</span>
+                <span className="font-bold text-nb-t1">{s.code}</span>
+                <span className="text-nb-t2">{s.name}</span>
                 {s.type === 'ETF' && (
                   <span className="text-[9px] px-1.5 py-0.5 bg-sky-100 text-sky-600 rounded-full font-bold">ETF</span>
                 )}
@@ -103,7 +103,7 @@ function WatchItem({
   return (
     <Link
       href={`/analyze?q=${code}`}
-      className="flex items-center justify-between px-4 py-3.5 hover:bg-stone-50 transition-colors"
+      className="flex items-center justify-between px-4 py-3.5 hover:bg-nb-s4 transition-colors"
     >
       <div className="flex items-center gap-3 min-w-0">
         <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center flex-shrink-0">
@@ -111,12 +111,12 @@ function WatchItem({
         </div>
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="text-sm font-bold text-stone-800 truncate">{name}</span>
+            <span className="text-sm font-bold text-nb-t0 truncate">{name}</span>
             {instrumentType === 'etf' && (
               <span className="text-[9px] px-1.5 py-0.5 bg-sky-100 text-sky-600 rounded-full font-bold flex-shrink-0">ETF</span>
             )}
           </div>
-          <div className="text-[10px] text-stone-400">
+          <div className="text-[10px] text-nb-t2">
             {code} · {techMode ? `加入於 ${addedDate}` : `${addedDate} 加入`}
           </div>
         </div>
@@ -124,22 +124,22 @@ function WatchItem({
 
       <div className="flex items-center gap-3 flex-shrink-0">
         {status === 'loading' && (
-          <div className="w-3.5 h-3.5 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
+          <div className="w-3.5 h-3.5 rounded-full border-2 border-nb-orange border-t-transparent animate-spin" />
         )}
         {status === 'error' && (
-          <span className="text-[10px] text-red-400">取得失敗</span>
+          <span className="text-[10px] text-nb-up">取得失敗</span>
         )}
         {status === 'done' && priceInfo && (
           <div className="text-right">
-            <div className="text-sm font-extrabold text-stone-800">{priceInfo.price}</div>
-            <div className={`text-[11px] font-semibold ${isUp ? 'text-red-500' : 'text-emerald-600'}`}>
+            <div className="text-sm font-extrabold text-nb-t0">{priceInfo.price}</div>
+            <div className={`text-[11px] font-semibold ${isUp ? 'text-nb-up' : 'text-nb-down'}`}>
               {isUp ? '+' : ''}{priceInfo.changePct.toFixed(2)}%
             </div>
           </div>
         )}
         <button
           onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRemove() }}
-          className="w-7 h-7 rounded-full bg-stone-100 hover:bg-red-100 text-stone-400 hover:text-red-400 text-sm flex items-center justify-center transition-colors"
+          className="w-7 h-7 rounded-full bg-nb-s4 hover:bg-red-100 text-nb-t2 hover:text-nb-up text-sm flex items-center justify-center transition-colors"
         >×</button>
       </div>
     </Link>
@@ -202,17 +202,17 @@ export default function WatchlistPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-[#F7F5F3]">
-      <div className="max-w-lg mx-auto px-4 py-5 space-y-4">
+    <div className="min-h-screen bg-nb-bg">
+      <div className="max-w-lg mx-auto px-4 pt-4 pb-6 space-y-4">
 
         {/* 標題 */}
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-extrabold text-stone-900">
+          <h1 className="text-2xl font-extrabold text-nb-t0">
             {techMode ? '自選股' : '我關注的股票'}
           </h1>
           <button
             onClick={() => setAdding(true)}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-amber-400 hover:bg-amber-500 text-white text-sm font-extrabold rounded-xl shadow-sm transition-colors"
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-nb-orange hover:hover:bg-nb-orange/90 text-white text-sm font-extrabold rounded-xl shadow-nb transition-colors"
           >
             <span className="text-base leading-none">+</span> 新增
           </button>
@@ -224,7 +224,7 @@ export default function WatchlistPage() {
         {/* 排序切換 */}
         {watchlist.length > 1 && (
           <div className="flex gap-1.5">
-            <span className="text-xs text-stone-400 self-center mr-1">
+            <span className="text-xs text-nb-t2 self-center mr-1">
               {techMode ? '排序：' : '排序方式：'}
             </span>
             {SORT_OPTIONS.map(({ key, label, plainLabel }) => (
@@ -233,8 +233,8 @@ export default function WatchlistPage() {
                 onClick={() => setSortKey(key)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
                   sortKey === key
-                    ? 'bg-amber-400 text-white border-amber-400'
-                    : 'bg-white text-stone-500 border-stone-200'
+                    ? 'bg-nb-orange text-white border-nb-orange'
+                    : 'bg-nb-s0 text-nb-t2 border-nb-border2'
                 }`}
               >
                 {techMode ? label : plainLabel}
@@ -245,7 +245,7 @@ export default function WatchlistPage() {
 
         {/* 列表 */}
         {sorted.length > 0 ? (
-          <div className="bg-white rounded-2xl border border-stone-100 shadow-sm divide-y divide-stone-50 overflow-hidden">
+          <div className="bg-nb-s0 rounded-2xl border border-nb-border shadow-nb divide-y divide-nb-border overflow-hidden">
             {sorted.map(w => (
               <WatchItem
                 key={w.id}
@@ -261,21 +261,21 @@ export default function WatchlistPage() {
           </div>
         ) : (
           !adding && (
-            <div className="bg-white rounded-3xl border border-stone-100 shadow-sm p-8 text-center">
-              <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center text-3xl mx-auto mb-4">
+            <div className="bg-nb-s0 rounded-2xl border border-nb-border shadow-nb p-8 text-center">
+              <div className="w-16 h-16 bg-nb-orange-bg rounded-full flex items-center justify-center text-3xl mx-auto mb-4">
                 ⭐
               </div>
-              <div className="text-base font-extrabold text-stone-600 mb-2">
+              <div className="text-base font-extrabold text-nb-t1 mb-2">
                 {techMode ? '尚無自選股' : '還沒有關注的股票'}
               </div>
-              <div className="text-xs text-stone-400 leading-relaxed mb-4">
+              <div className="text-xs text-nb-t2 leading-relaxed mb-4">
                 {techMode
                   ? '加入股票或 ETF，不需持有也能追蹤'
                   : '不用真的買，先加進來觀察也可以'}
               </div>
               <button
                 onClick={() => setAdding(true)}
-                className="px-5 py-2.5 bg-amber-400 hover:bg-amber-500 text-white text-xs font-bold rounded-xl shadow-sm transition-colors"
+                className="px-5 py-2.5 bg-nb-orange hover:hover:bg-nb-orange/90 text-white text-xs font-bold rounded-xl shadow-nb transition-colors"
               >
                 新增第一檔
               </button>

@@ -52,15 +52,15 @@ function RingProgress({ stats }: { stats: HoldingStats }) {
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           {isProfit ? (
             <>
-              <span className="text-xl font-bold text-emerald-600">已解套</span>
-              <span className="text-xs text-emerald-500">✓</span>
+              <span className="text-xl font-bold text-nb-down">已解套</span>
+              <span className="text-xs text-nb-down">✓</span>
             </>
           ) : (
             <>
               <span className="text-xl font-bold" style={{ color: ringColor }}>
                 {pct.toFixed(0)}%
               </span>
-              <span className="text-[10px] text-stone-400">解套進度</span>
+              <span className="text-[10px] text-nb-t2">解套進度</span>
             </>
           )}
         </div>
@@ -69,23 +69,23 @@ function RingProgress({ stats }: { stats: HoldingStats }) {
       {/* 四欄數據 */}
       <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 mt-2 w-full max-w-xs">
         {[
-          { label: '平均成本', val: String(avgCost),          cls: 'text-stone-600' },
-          { label: '現價',     val: String(px.toFixed(2)),    cls: isProfit ? 'text-emerald-600' : 'text-red-500' },
-          { label: '解套價差', val: isProfit ? '已超過成本'  : `-${fmt(totalGap)} 元`, cls: 'text-stone-500' },
-          { label: '距離解套', val: isProfit ? '0%'           : `+${distPct?.toFixed(1) ?? '—'}%`, cls: isProfit ? 'text-emerald-600' : 'text-amber-600' },
+          { label: '平均成本', val: String(avgCost),          cls: 'text-nb-t1' },
+          { label: '現價',     val: String(px.toFixed(2)),    cls: isProfit ? 'text-nb-down' : 'text-nb-up' },
+          { label: '解套價差', val: isProfit ? '已超過成本'  : `-${fmt(totalGap)} 元`, cls: 'text-nb-t2' },
+          { label: '距離解套', val: isProfit ? '0%'           : `+${distPct?.toFixed(1) ?? '—'}%`, cls: isProfit ? 'text-nb-down' : 'text-nb-orange' },
         ].map(({ label, val, cls }) => (
           <div key={label} className="text-center">
-            <div className="text-[10px] text-stone-400">{label}</div>
+            <div className="text-[10px] text-nb-t2">{label}</div>
             <div className={`text-xs font-semibold ${cls}`}>{val}</div>
           </div>
         ))}
       </div>
 
       {!isProfit && (
-        <div className="mt-2 px-3 py-1.5 bg-amber-50 rounded-xl text-xs text-center w-full">
-          <span className="text-amber-600">解套目標：</span>
+        <div className="mt-2 px-3 py-1.5 bg-nb-orange-bg rounded-xl text-xs text-center w-full">
+          <span className="text-nb-orange">解套目標：</span>
           <span className="font-bold text-amber-700 ml-1">{avgCost}</span>
-          <span className="text-amber-500 ml-1">（需漲 {distPct?.toFixed(1) ?? '—'}%）</span>
+          <span className="text-nb-orange ml-1">（需漲 {distPct?.toFixed(1) ?? '—'}%）</span>
         </div>
       )}
     </div>
@@ -111,19 +111,19 @@ function BarProgress({ stats }: { stats: HoldingStats }) {
 
   return (
     <div className="px-1 py-2">
-      <div className="flex justify-between text-xs text-stone-400 mb-3">
+      <div className="flex justify-between text-xs text-nb-t2 mb-3">
         <span>解套進度</span>
-        <span className={isProfit ? 'text-emerald-600 font-medium' : 'text-amber-600 font-medium'}>
+        <span className={isProfit ? 'text-nb-down font-medium' : 'text-nb-orange font-medium'}>
           {isProfit ? '已解套 ✓' : `距解套 ${distPct?.toFixed(1) ?? '—'}%`}
         </span>
       </div>
 
-      <div className="relative h-5 bg-stone-100 rounded-full overflow-visible mb-1">
+      <div className="relative h-5 bg-nb-s4 rounded-full overflow-visible mb-1">
         <div className="absolute left-0 top-0 h-full rounded-full transition-all duration-700"
           style={{ width: `${Math.max(fillPct, 2)}%`, background: barColor, opacity: 0.8 }} />
         <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-10"
           style={{ left: `${Math.max(Math.min(pricePct, 97), 3)}%` }}>
-          <div className="w-3.5 h-3.5 rounded-full bg-white border-2 shadow"
+          <div className="w-3.5 h-3.5 rounded-full bg-nb-s0 border-2 shadow"
             style={{ borderColor: barColor }} />
         </div>
         <div className="absolute top-[-8px] -translate-x-1/2 z-10"
@@ -132,9 +132,9 @@ function BarProgress({ stats }: { stats: HoldingStats }) {
         </div>
       </div>
 
-      <div className="flex justify-between text-[10px] text-stone-400 mt-3 mb-3">
+      <div className="flex justify-between text-[10px] text-nb-t2 mt-3 mb-3">
         <span>{low.toFixed(1)}</span>
-        <span className="text-stone-500 font-medium">←── 區間 ──→</span>
+        <span className="text-nb-t2 font-medium">←── 區間 ──→</span>
         <span>{high.toFixed(1)}</span>
       </div>
 
@@ -148,13 +148,13 @@ function BarProgress({ stats }: { stats: HoldingStats }) {
           { label: '解套目標價',   val: String(avgCost),          highlight: true },
         ].map(({ label, val, highlight }) => (
           <div key={label} className={`p-2.5 rounded-xl text-center border ${
-            highlight ? 'bg-amber-50 border-amber-100' : 'bg-stone-50 border-stone-100'
+            highlight ? 'bg-nb-orange-bg border-nb-orange/20' : 'bg-nb-s4 border-nb-border'
           }`}>
-            <div className="text-[10px] text-stone-400 mb-0.5">{label}</div>
+            <div className="text-[10px] text-nb-t2 mb-0.5">{label}</div>
             <div className={`text-sm font-semibold ${
               highlight ? 'text-amber-700'
-              : label === '現價' && !isProfit ? 'text-red-500'
-              : 'text-stone-700'
+              : label === '現價' && !isProfit ? 'text-nb-up'
+              : 'text-nb-t1'
             }`}>{val}</div>
           </div>
         ))}
@@ -170,21 +170,21 @@ export default function UnstuckProgress({ stats, defaultView = 'ring' }: Props) 
   // 若現價尚未取得，不顯示進度環
   if (stats.currentPrice === null) {
     return (
-      <div className="bg-white rounded-2xl border border-stone-200 p-4 text-center text-xs text-stone-400">
+      <div className="bg-nb-s0 rounded-2xl border border-nb-border2 p-4 text-center text-xs text-nb-t2">
         正在取得最新價格…
       </div>
     )
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-2.5 bg-stone-50 border-b border-stone-100">
-        <span className="text-xs font-semibold text-stone-600">解套進度</span>
-        <div className="flex bg-stone-200 rounded-lg p-0.5 gap-0.5">
+    <div className="bg-nb-s0 rounded-2xl border border-nb-border2 overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-2.5 bg-nb-s4 border-b border-nb-border">
+        <span className="text-xs font-semibold text-nb-t1">解套進度</span>
+        <div className="flex bg-nb-border rounded-lg p-0.5 gap-0.5">
           {(['ring', 'bar'] as const).map(v => (
             <button key={v} onClick={() => setView(v)}
               className={`px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${
-                view === v ? 'bg-white text-stone-700 shadow-sm' : 'text-stone-500'
+                view === v ? 'bg-nb-s0 text-nb-t1 shadow-nb' : 'text-nb-t2'
               }`}
             >
               {v === 'ring' ? '⊙ 環形' : '▬ 條形'}

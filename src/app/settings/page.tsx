@@ -22,36 +22,36 @@ function FundSettingCard() {
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4">
-      <div className="text-sm font-extrabold text-stone-800 mb-1">
+    <div className="bg-nb-s0 rounded-2xl border border-nb-border shadow-nb p-4">
+      <div className="text-sm font-extrabold text-nb-t0 mb-1">
         {techMode ? '總資金設定' : '我總共有多少錢可以投資？'}
       </div>
-      <p className="text-xs text-stone-400 mb-3 leading-relaxed">
+      <p className="text-xs text-nb-t2 mb-3 leading-relaxed">
         {techMode
           ? '用於計算現金部位與資產比例圖。現金 = 總資金 − 目前持股市值。'
           : '填入後，首頁會幫你算出「現金」還剩多少，以及股票、ETF、現金各佔多少比例。'}
       </p>
       <div className="flex gap-2">
         <div className="flex-1 relative">
-          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-stone-400">$</span>
+          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-nb-t2">$</span>
           <input
             type="number"
             inputMode="decimal"
             value={input}
             onChange={e => setInput(e.target.value)}
             placeholder="例如：500000"
-            className="w-full h-11 pl-7 pr-3.5 bg-stone-50 border border-stone-200 rounded-xl text-sm font-semibold focus:outline-none focus:border-amber-300"
+            className="w-full h-11 pl-7 pr-3.5 bg-nb-s4 border border-nb-border2 rounded-xl text-sm font-semibold focus:outline-none focus:border-nb-orange/50"
           />
         </div>
         <button
           onClick={handleSave}
-          className="px-5 h-11 bg-amber-400 hover:bg-amber-500 text-white text-sm font-extrabold rounded-xl shadow-sm transition-colors flex-shrink-0"
+          className="px-5 h-11 bg-nb-orange hover:hover:bg-nb-orange/90 text-white text-sm font-extrabold rounded-xl shadow-nb transition-colors flex-shrink-0"
         >
           {saved ? '✓ 已儲存' : '儲存'}
         </button>
       </div>
       {totalFund > 0 && (
-        <div className="mt-2 text-xs text-stone-400">
+        <div className="mt-2 text-xs text-nb-t2">
           目前設定：${totalFund.toLocaleString('zh-TW')} 元
         </div>
       )}
@@ -105,11 +105,11 @@ function BackupRestoreCard() {
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4">
-      <div className="text-sm font-extrabold text-stone-800 mb-1">
+    <div className="bg-nb-s0 rounded-2xl border border-nb-border shadow-nb p-4">
+      <div className="text-sm font-extrabold text-nb-t0 mb-1">
         {techMode ? '資料備份與還原' : '備份我的資料'}
       </div>
-      <p className="text-xs text-stone-400 mb-4 leading-relaxed">
+      <p className="text-xs text-nb-t2 mb-4 leading-relaxed">
         {techMode
           ? '所有資料僅存於本機瀏覽器，清除快取或更換裝置會遺失。建議定期匯出備份。'
           : '你的持股、交易紀錄都只存在這台手機/電腦裡。換手機、清快取資料就會不見，記得定期備份！'}
@@ -118,18 +118,18 @@ function BackupRestoreCard() {
       <div className="grid grid-cols-2 gap-2 mb-3">
         <button
           onClick={handleExport}
-          className="flex flex-col items-center gap-1 py-3.5 bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-xl transition-colors"
+          className="flex flex-col items-center gap-1 py-3.5 bg-nb-s4 hover:bg-nb-s4 border border-nb-border2 rounded-xl transition-colors"
         >
           <span className="text-xl">📤</span>
-          <span className="text-xs font-bold text-stone-700">匯出資料</span>
+          <span className="text-xs font-bold text-nb-t1">匯出資料</span>
         </button>
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={importing}
-          className="flex flex-col items-center gap-1 py-3.5 bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-xl transition-colors disabled:opacity-50"
+          className="flex flex-col items-center gap-1 py-3.5 bg-nb-s4 hover:bg-nb-s4 border border-nb-border2 rounded-xl transition-colors disabled:opacity-50"
         >
           <span className="text-xl">📥</span>
-          <span className="text-xs font-bold text-stone-700">
+          <span className="text-xs font-bold text-nb-t1">
             {importing ? '匯入中…' : '匯入資料'}
           </span>
         </button>
@@ -143,21 +143,21 @@ function BackupRestoreCard() {
       </div>
 
       {confirming && pendingFile && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 mb-3">
+        <div className="bg-nb-orange-bg border border-nb-orange/30 rounded-xl p-3.5 mb-3">
           <div className="text-xs font-bold text-amber-700 mb-1.5">⚠️ 確定要匯入嗎？</div>
-          <p className="text-[11px] text-amber-600 leading-relaxed mb-3">
+          <p className="text-[11px] text-nb-orange leading-relaxed mb-3">
             匯入「{pendingFile.name}」將會<strong>覆蓋</strong>目前所有持股、交易紀錄、股息與自選股資料，此動作無法復原。
           </p>
           <div className="flex gap-2">
             <button
               onClick={confirmImport}
-              className="flex-1 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition-colors"
+              className="flex-1 py-2 hover:bg-nb-orange/90 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition-colors"
             >
               確定覆蓋匯入
             </button>
             <button
               onClick={cancelImport}
-              className="flex-1 py-2 bg-white border border-amber-200 text-amber-600 text-xs font-bold rounded-lg transition-colors"
+              className="flex-1 py-2 bg-nb-s0 border border-nb-orange/30 text-nb-orange text-xs font-bold rounded-lg transition-colors"
             >
               取消
             </button>
@@ -168,8 +168,8 @@ function BackupRestoreCard() {
       {result && (
         <div className={`rounded-xl p-3 text-xs leading-relaxed ${
           result.ok
-            ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
-            : 'bg-red-50 border border-red-200 text-red-600'
+            ? 'bg-nb-s2 border border-nb-border text-nb-green'
+            : 'bg-nb-s3 border border-nb-border text-nb-up'
         }`}>
           {result.ok ? (
             <>
@@ -199,21 +199,21 @@ function TrimRulesCard() {
   ]
 
   return (
-    <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4">
-      <div className="text-sm font-extrabold text-stone-800 mb-1">
+    <div className="bg-nb-s0 rounded-2xl border border-nb-border shadow-nb p-4">
+      <div className="text-sm font-extrabold text-nb-t0 mb-1">
         {techMode ? '減碼規則設定' : '不同情況下，建議賣多少？'}
       </div>
-      <p className="text-xs text-stone-400 mb-3 leading-relaxed">
+      <p className="text-xs text-nb-t2 mb-3 leading-relaxed">
         套用於持股管理頁「賣多少」試算的預設比例。
       </p>
       <div className="space-y-3">
         {RULES.map(({ key, label, plainLabel }) => (
           <div key={key}>
             <div className="flex justify-between items-center mb-1.5">
-              <span className="text-xs font-semibold text-stone-600">
+              <span className="text-xs font-semibold text-nb-t1">
                 {techMode ? label : plainLabel}
               </span>
-              <span className="text-sm font-extrabold text-amber-600 tabular-nums">
+              <span className="text-sm font-extrabold text-nb-orange tabular-nums">
                 {Math.round(trimRules[key] * 100)}%
               </span>
             </div>
@@ -235,9 +235,9 @@ export default function SettingsPage() {
   const { techMode } = useUIStore()
 
   return (
-    <div className="min-h-screen bg-[#F7F5F3]">
-      <div className="max-w-lg mx-auto px-4 py-5 space-y-4">
-        <h1 className="text-2xl font-extrabold text-stone-900">
+    <div className="min-h-screen bg-nb-bg">
+      <div className="max-w-lg mx-auto px-4 pt-4 pb-6 space-y-4">
+        <h1 className="text-2xl font-extrabold text-nb-t0">
           {techMode ? '設定' : '我的設定'}
         </h1>
 
@@ -245,22 +245,22 @@ export default function SettingsPage() {
         <div className="grid grid-cols-2 gap-2">
           <Link
             href="/dividends"
-            className="flex items-center gap-2.5 px-4 py-3.5 bg-white border border-stone-100 shadow-sm rounded-2xl hover:border-amber-200 transition-colors"
+            className="flex items-center gap-2.5 px-4 py-3.5 bg-nb-s0 border border-nb-border shadow-nb rounded-2xl hover:border-nb-orange/30 transition-colors"
           >
             <span className="text-xl">💰</span>
             <div>
-              <div className="text-xs font-extrabold text-stone-700">股息中心</div>
-              <div className="text-[10px] text-stone-400">追蹤配息收入</div>
+              <div className="text-xs font-extrabold text-nb-t1">股息中心</div>
+              <div className="text-[10px] text-nb-t2">追蹤配息收入</div>
             </div>
           </Link>
           <Link
             href="/watchlist"
-            className="flex items-center gap-2.5 px-4 py-3.5 bg-white border border-stone-100 shadow-sm rounded-2xl hover:border-amber-200 transition-colors"
+            className="flex items-center gap-2.5 px-4 py-3.5 bg-nb-s0 border border-nb-border shadow-nb rounded-2xl hover:border-nb-orange/30 transition-colors"
           >
             <span className="text-xl">⭐</span>
             <div>
-              <div className="text-xs font-extrabold text-stone-700">自選股</div>
-              <div className="text-[10px] text-stone-400">追蹤關注股票</div>
+              <div className="text-xs font-extrabold text-nb-t1">自選股</div>
+              <div className="text-[10px] text-nb-t2">追蹤關注股票</div>
             </div>
           </Link>
         </div>
@@ -269,7 +269,7 @@ export default function SettingsPage() {
         <BackupRestoreCard />
         <TrimRulesCard />
 
-        <div className="text-center text-[10px] text-stone-300 pb-4 leading-relaxed">
+        <div className="text-center text-[10px] text-nb-t3 pb-4 leading-relaxed">
           所有資料僅儲存於本機瀏覽器，不會上傳至任何伺服器。
         </div>
       </div>

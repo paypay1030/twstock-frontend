@@ -239,3 +239,64 @@ export interface TradeStatistics {
   maxLoss: { code: string; name: string; amount: number } | null
   byYear: YearlyTradeSummary[]
 }
+
+// ════════════════════════════════════════════════════════════
+// 技術指標（Phase 9：FastAPI 串接準備）
+// ════════════════════════════════════════════════════════════
+
+/**
+ * 技術指標快照
+ * FastAPI 端點：GET /api/analysis/{code}/indicators
+ *
+ * KLine 已含 MA20/60/120/240；此介面補充 RSI/MACD/KD 等動量指標。
+ * 前端分析頁技術卡片由此資料驅動。
+ */
+/**
+ * 技術指標快照（Phase 10：與 FastAPI /api/analysis/{code}/indicators 完整對齊）
+ */
+export interface TechIndicators {
+  // 均線（最新值）
+  ma5:   number | null
+  ma10:  number | null
+  ma20:  number | null
+  ma60:  number | null
+  ma240: number | null
+
+  // RSI
+  rsi:   number | null
+
+  // MACD（巢狀物件）
+  macd: {
+    dif:  number | null   // 快線（DIF）
+    dea:  number | null   // 慢線（DEA/Signal）
+    hist: number | null   // 柱狀圖（×2，台灣慣例）
+  }
+
+  // KD 隨機指標（巢狀物件）
+  kd: {
+    k: number | null
+    d: number | null
+    j: number | null
+  }
+
+  // 布林通道（巢狀物件）
+  bollinger: {
+    upper:  number | null
+    middle: number | null
+    lower:  number | null
+  }
+
+  // 成交量（巢狀物件）
+  volume: {
+    current: number | null   // 今日成交量
+    ma5:     number | null   // 5日均量
+    ma20:    number | null   // 20日均量
+  }
+
+  // 趨勢判斷（後端計算）
+  trend:       'bull' | 'bear' | 'neutral' | null
+  trend_label: string | null
+
+  // 元資料
+  updated_at: string   // ISO 8601
+}

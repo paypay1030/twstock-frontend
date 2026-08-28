@@ -8,8 +8,8 @@ export default function TechModeToggle({ className = '' }: { className?: string 
       onClick={toggleTechMode}
       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
         techMode
-          ? 'bg-stone-700 text-white'
-          : 'bg-stone-100 text-stone-500 hover:bg-stone-200'
+          ? 'bg-nb-t1 text-white'
+          : 'bg-nb-s4 text-nb-t2 hover:bg-nb-s4'
       } ${className}`}
       title={techMode ? '切換回白話模式' : '切換為技術模式'}
     >

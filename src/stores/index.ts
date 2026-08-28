@@ -358,3 +358,41 @@ export const useWatchlistStore = create<WatchlistStore>()(
     }
   )
 )
+
+// ════════════════════════════════════════════════════════════
+// 今日筆記 Store（useDailyNoteStore）
+//
+// 設計原則：
+//   - 首頁從此 store 讀取，不再寫死 demo 資料
+//   - 預設值為佔位內容，讓 UI 保持完整
+//   - 未來 AI API 回傳後呼叫 setNote() 更新，首頁自動反映
+//   - 不做 LocalStorage persist（每天重新取得最新內容）
+// ════════════════════════════════════════════════════════════
+import type { TodayNoteData } from '@/components/nb/TodayNoteCard'
+
+/** 佔位預設值：UI 保持完整，提示使用者資料待載入 */
+export const DEFAULT_TODAY_NOTE: TodayNoteData = {
+  headline: '今天的市場分析準備中。',
+  body: '稍後將由 AI 為你整理今天的重點判斷。',
+  reasons: [],
+  ifIWere: '請稍待，AI 正在分析今日市場狀況。',
+  actions: ['先查看昨日持股狀況'],
+  riskLevel: 'low',
+  riskNote: '',
+  confidence: 'mid',
+}
+
+interface DailyNoteStore {
+  note: TodayNoteData
+  isReady: boolean          // false = 尚未由 AI 更新，顯示佔位狀態
+  setNote: (note: TodayNoteData) => void
+  reset: () => void
+}
+
+export const useDailyNoteStore = create<DailyNoteStore>()((set) => ({
+  note: DEFAULT_TODAY_NOTE,
+  isReady: false,
+  setNote: (note) => set({ note, isReady: true }),
+  reset:   ()     => set({ note: DEFAULT_TODAY_NOTE, isReady: false }),
+}))
+

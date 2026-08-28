@@ -31,3 +31,20 @@ body {
 .safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
+
+/* ── Safe area utilities ── */
+.pb-safe   { padding-bottom: env(safe-area-inset-bottom, 0px) }
+.pt-safe   { padding-top:    env(safe-area-inset-top, 0px) }
+.px-safe   { padding-left:   env(safe-area-inset-left, 0px);
+             padding-right:  env(safe-area-inset-right, 0px) }
+
+/* ── Page container（各頁面統一使用） ── */
+.nb-page {
+  min-height: 100%;
+  background-color: var(--nb-bg, #F5F0E8);
+  padding-bottom: 1.5rem;
+}
+
+/* ── Scroll behaviour ── */
+html { scroll-behavior: smooth }
+body { overscroll-behavior: none }

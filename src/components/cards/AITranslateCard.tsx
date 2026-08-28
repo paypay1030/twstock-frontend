@@ -20,7 +20,7 @@ function Section({ label, text, techNote }: {
       <div className="text-sm text-sky-900 leading-relaxed"
         dangerouslySetInnerHTML={{ __html: text }} />
       {!techMode && techNote && (
-        <div className="mt-1.5 text-[10px] text-stone-400 italic">{techNote}</div>
+        <div className="mt-1.5 text-[10px] text-nb-t2 italic">{techNote}</div>
       )}
       {techMode && techNote && (
         <div className="mt-1.5 text-[10px] text-sky-400">{techNote}</div>

@@ -45,23 +45,23 @@ export default function TradeForm({ code, name, currentPrice, suggestedType = 'b
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm">
+    <div className="bg-nb-s0 rounded-2xl border border-nb-border2 overflow-hidden shadow-nb">
       {/* 標題 */}
-      <div className="px-4 py-3 bg-stone-50 border-b border-stone-100 flex justify-between items-center">
+      <div className="px-4 py-3 bg-nb-s4 border-b border-nb-border flex justify-between items-center">
         <div>
-          <span className="text-sm font-bold text-stone-800">新增交易紀錄</span>
-          <span className="text-xs text-stone-400 ml-2">{name} {code}</span>
+          <span className="text-sm font-bold text-nb-t0">新增交易紀錄</span>
+          <span className="text-xs text-nb-t2 ml-2">{name} {code}</span>
         </div>
-        <button onClick={onCancel} className="text-stone-400 hover:text-stone-600 text-xl leading-none w-8 h-8 flex items-center justify-center">×</button>
+        <button onClick={onCancel} className="text-nb-t2 hover:text-nb-t1 text-xl leading-none w-8 h-8 flex items-center justify-center">×</button>
       </div>
 
       <div className="p-4 space-y-3">
         {/* 系統建議提示 */}
         {!manualType && (
-          <div className="flex items-center gap-2 text-xs bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+          <div className="flex items-center gap-2 text-xs bg-nb-orange-bg border border-nb-orange/20 rounded-xl px-3 py-2">
             <span>💡 系統建議：</span>
             <span className="font-bold text-amber-700">{TRADE_META[suggestedType].label}</span>
-            <span className="text-stone-400">（可手動切換）</span>
+            <span className="text-nb-t2">（可手動切換）</span>
           </div>
         )}
 
@@ -75,7 +75,7 @@ export default function TradeForm({ code, name, currentPrice, suggestedType = 'b
                 className={`py-2.5 rounded-xl text-xs font-bold border-2 transition-all ${
                   type === t
                     ? `${m.badgeBg} ${m.badgeText} border-transparent`
-                    : 'bg-white text-stone-400 border-stone-200'
+                    : 'bg-nb-s0 text-nb-t2 border-nb-border2'
                 }`}
               >{m.label}</button>
             )
@@ -85,63 +85,63 @@ export default function TradeForm({ code, name, currentPrice, suggestedType = 'b
         {/* 價格 + 股數 */}
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="text-xs text-stone-400 mb-1 block">{TRADE_META[type].label}價格</label>
+            <label className="text-xs text-nb-t2 mb-1 block">{TRADE_META[type].label}價格</label>
             <input type="number" value={price} onChange={e => setPrice(e.target.value)}
               placeholder="例：57.03" step="0.01"
-              className="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-amber-300 focus:bg-white transition-colors"
+              className="w-full px-3 py-2.5 bg-nb-s4 border border-nb-border2 rounded-xl text-sm focus:outline-none focus:border-nb-orange/50 focus:bg-nb-s0 transition-colors"
             />
           </div>
           <div>
-            <label className="text-xs text-stone-400 mb-1 block">股數</label>
+            <label className="text-xs text-nb-t2 mb-1 block">股數</label>
             <input type="number" value={shares} onChange={e => setShares(e.target.value)}
               placeholder="例：1000"
-              className="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-amber-300 focus:bg-white transition-colors"
+              className="w-full px-3 py-2.5 bg-nb-s4 border border-nb-border2 rounded-xl text-sm focus:outline-none focus:border-nb-orange/50 focus:bg-nb-s0 transition-colors"
             />
           </div>
         </div>
 
         {/* 預估金額 */}
         {amount > 0 && (
-          <div className="text-center text-xs text-stone-500">
+          <div className="text-center text-xs text-nb-t2">
             {isBuySide ? '預計投入' : '預計回收'}：
-            <span className="font-bold text-stone-700 ml-1">${amount.toLocaleString()} 元</span>
+            <span className="font-bold text-nb-t1 ml-1">${amount.toLocaleString()} 元</span>
           </div>
         )}
 
         {/* 日期 */}
         <div>
-          <label className="text-xs text-stone-400 mb-1 block">交易日期</label>
+          <label className="text-xs text-nb-t2 mb-1 block">交易日期</label>
           <input type="date" value={date} onChange={e => setDate(e.target.value)}
-            className="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-amber-300 focus:bg-white"
+            className="w-full px-3 py-2.5 bg-nb-s4 border border-nb-border2 rounded-xl text-sm focus:outline-none focus:border-nb-orange/50 focus:bg-nb-s0"
           />
         </div>
 
         {/* 備註 */}
         <div>
-          <label className="text-xs text-stone-400 mb-1 block">備註（選填）</label>
+          <label className="text-xs text-nb-t2 mb-1 block">備註（選填）</label>
           <input value={note} onChange={e => setNote(e.target.value)}
             placeholder="例：季線支撐附近分批買進"
-            className="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-amber-300 focus:bg-white"
+            className="w-full px-3 py-2.5 bg-nb-s4 border border-nb-border2 rounded-xl text-sm focus:outline-none focus:border-nb-orange/50 focus:bg-nb-s0"
           />
         </div>
 
         {/* 投資日誌 */}
         <button onClick={() => setShowJ(!showJournal)}
-          className="flex items-center gap-1.5 text-xs text-amber-600 font-semibold w-full py-1"
+          className="flex items-center gap-1.5 text-xs text-nb-orange font-semibold w-full py-1"
         >
-          <span className="text-stone-300">{showJournal ? '▼' : '▶'}</span>
+          <span className="text-nb-t3">{showJournal ? '▼' : '▶'}</span>
           {showJournal ? '收起投資日誌' : '＋ 新增投資日誌（選填）'}
         </button>
 
         {showJournal && (
-          <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 space-y-3">
+          <div className="p-3 bg-nb-orange-bg rounded-xl border border-nb-orange/20 space-y-3">
             <div>
               <label className="text-xs font-bold text-amber-700 mb-1.5 block">
                 {TRADE_META[type].label}原因
               </label>
               <textarea value={reason} onChange={e => setReason(e.target.value)}
                 rows={2} placeholder="例：接近支撐區，量縮整理，分批布局"
-                className="w-full px-3 py-2 bg-white border border-amber-200 rounded-xl text-sm resize-none focus:outline-none focus:border-amber-400"
+                className="w-full px-3 py-2 bg-nb-s0 border border-nb-orange/30 rounded-xl text-sm resize-none focus:outline-none focus:border-nb-orange/60"
               />
             </div>
             <div>
@@ -153,13 +153,13 @@ export default function TradeForm({ code, name, currentPrice, suggestedType = 'b
                     <button key={c} onClick={() => setConf(c)}
                       className={`py-2 rounded-xl border text-center text-xs font-medium transition-all ${
                         confidence === c
-                          ? 'border-amber-400 bg-white text-amber-800 ring-2 ring-amber-200'
-                          : 'border-stone-200 bg-white text-stone-500'
+                          ? 'border-nb-orange bg-nb-s0 text-nb-orange ring-2 ring-nb-orange/20'
+                          : 'border-nb-border2 bg-nb-s0 text-nb-t2'
                       }`}
                     >
                       <div className="text-lg mb-0.5">{m.icon}</div>
                       <div className="font-bold">{m.label}</div>
-                      <div className="text-[9px] text-stone-400 mt-0.5">{m.desc}</div>
+                      <div className="text-[9px] text-nb-t2 mt-0.5">{m.desc}</div>
                     </button>
                   )
                 })}
@@ -170,7 +170,7 @@ export default function TradeForm({ code, name, currentPrice, suggestedType = 'b
 
         {/* 儲存按鈕 */}
         <button onClick={handleSave} disabled={!valid}
-          className="w-full py-3 bg-amber-400 hover:bg-amber-500 disabled:bg-stone-200 disabled:text-stone-400 text-white font-bold rounded-xl text-sm transition-colors"
+          className="w-full py-3 bg-nb-orange hover:hover:bg-nb-orange/90 disabled:bg-nb-border disabled:text-nb-t2 text-white font-bold rounded-xl text-sm transition-colors"
         >
           儲存紀錄
         </button>

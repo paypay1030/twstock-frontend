@@ -165,9 +165,9 @@ export default function StockChart({
   }, [klines, supportLevels, resistanceLevels, stopLoss, height])
 
   return (
-    <div className="w-full rounded-xl overflow-hidden border border-stone-200 bg-stone-50">
+    <div className="w-full rounded-xl overflow-hidden border border-nb-border2 bg-nb-s4">
       {/* 圖例 */}
-      <div className="flex flex-wrap gap-3 px-3 pt-2.5 pb-1.5 border-b border-stone-100">
+      <div className="flex flex-wrap gap-3 px-3 pt-2.5 pb-1.5 border-b border-nb-border">
         {[
           { color: '#F59E0B', label: 'MA20' },
           { color: '#3B82F6', label: 'MA60' },
@@ -178,7 +178,7 @@ export default function StockChart({
         ].map(({ color, label }) => (
           <div key={label} className="flex items-center gap-1">
             <span className="inline-block w-5 h-0.5" style={{ background: color }} />
-            <span className="text-[10px] text-stone-400">{label}</span>
+            <span className="text-[10px] text-nb-t2">{label}</span>
           </div>
         ))}
       </div>
