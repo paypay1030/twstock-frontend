@@ -31,14 +31,23 @@ const pnlCls = (n: number | null) =>
 function TodayAlertBanner({
   signals, techMode,
 }: {
-  signals: { code: string; name: string; color: SignalColor; action: string; desc?: string; unrealizedPct?: number }[]
+  signals: { code: string; name: string; color: SignalColor; action: string; desc?: string; unrealizedPct?: number; isLoading?: boolean }[]
   techMode: boolean
 }) {
   if (signals.length === 0) return null
 
-  const urgent  = signals.filter(s => s.color === 'red' || s.color === 'orange')
-  const normal  = signals.filter(s => s.color === 'green' || s.color === 'yellow')
-  const display = urgent.length > 0 ? urgent.slice(0, 3) : normal.slice(0, 3)
+  // 分離：載入中、失敗、有訊號
+  const loading  = signals.filter(s => s.isLoading)
+  const withSig  = signals.filter(s => !s.isLoading && (s.color === 'red' || s.color === 'orange'))
+  const normal   = signals.filter(s => !s.isLoading && s.color !== 'red' && s.color !== 'orange')
+
+  // 顯示順序：有真實緊急訊號 > 其他真實訊號 > 分析中
+  const urgent  = withSig.slice(0, 3)
+  const display = urgent.length > 0
+    ? urgent
+    : normal.length > 0
+      ? normal.slice(0, 2)
+      : []
 
   return (
     <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-nb-s3 to-[#E5D5C2] border border-nb-border2 shadow-nb-lg p-5">
@@ -51,34 +60,49 @@ function TodayAlertBanner({
         </span>
         <div className="flex-1 h-px bg-nb-border2" />
       </div>
-      <div className="space-y-2.5">
-        {display.map(s => {
-          const sp = SIGNAL_PLAIN[s.color]
-          const isUrgent = s.color === 'red' || s.color === 'orange'
-          return (
-            <div key={s.code} className="flex items-start gap-3">
-              <span className={`flex-shrink-0 mt-0.5 w-2 h-2 rounded-full ${
-                s.color === 'red'    ? 'bg-nb-red' :
-                s.color === 'orange' ? 'bg-nb-orange' :
-                s.color === 'yellow' ? 'bg-nb-yellow' : 'bg-nb-green'
-              }`} />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-[13px] font-extrabold text-nb-t0">{s.name}</span>
-                  <NbBadge variant={SIG_VARIANT[s.color]} dot={false}>
-                    {techMode ? sp.techLabel : sp.label}
-                  </NbBadge>
+
+      {/* 分析中的股票 */}
+      {loading.length > 0 && (
+        <div className="mb-2.5 flex items-center gap-2 text-[11px] text-nb-t3">
+          <div className="w-2 h-2 rounded-full border-2 border-nb-t3 border-t-transparent animate-spin flex-shrink-0" />
+          <span>
+            {loading.map(s => s.name).join('、')} 分析中，完成後自動更新…
+          </span>
+        </div>
+      )}
+
+      {/* 真實訊號項目 */}
+      {display.length > 0 && (
+        <div className="space-y-2.5">
+          {display.map(s => {
+            const sp = SIGNAL_PLAIN[s.color]
+            return (
+              <div key={s.code} className="flex items-start gap-3">
+                <span className={`flex-shrink-0 mt-0.5 w-2 h-2 rounded-full ${
+                  s.color === 'red'    ? 'bg-nb-red' :
+                  s.color === 'orange' ? 'bg-nb-orange' :
+                  s.color === 'yellow' ? 'bg-nb-yellow' : 'bg-nb-green'
+                }`} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-[13px] font-extrabold text-nb-t0">{s.name}</span>
+                    <NbBadge variant={SIG_VARIANT[s.color]} dot={false}>
+                      {techMode ? sp.techLabel : sp.label}
+                    </NbBadge>
+                  </div>
+                  <p className="text-[12px] text-nb-t1 leading-snug">
+                    {s.desc ?? (techMode ? sp.techLabel : sp.headDesc)}
+                  </p>
                 </div>
-                <p className="text-[12px] text-nb-t1 leading-snug">
-                  {s.desc ?? (techMode ? sp.techLabel : sp.headDesc)}
-                </p>
               </div>
-            </div>
-          )
-        })}
-      </div>
-      {urgent.length === 0 && (
-        <div className="mt-3 pt-3 border-t border-nb-border2/50 text-[11px] text-nb-t3 text-center">
+            )
+          })}
+        </div>
+      )}
+
+      {/* 全部完成且無緊急訊號 */}
+      {loading.length === 0 && urgent.length === 0 && (
+        <div className="mt-1 text-[11px] text-nb-t3 text-center">
           {techMode ? '今日持股無異常訊號' : '今天持股都還好，可以放心觀察'}
         </div>
       )}
@@ -506,72 +530,85 @@ export default function PortfolioPage() {
     const COLOR_ORDER: Record<SignalColor, number> = { red: 0, orange: 1, yellow: 2, green: 3 }
 
     return stockList
-      .filter(({ code }) => signalMap[code] && (statsMap[code]?.currentShares ?? 0) > 0)
+      .filter(({ code }) => (statsMap[code]?.currentShares ?? 0) > 0)
       .map(({ code, name }) => {
-        const sig    = signalMap[code]!
+        const status = statusMap[code]
+        const sig    = signalMap[code]
         const stats  = statsMap[code]
-        const sr     = srMap[code]           // 真實支撐壓力（analyzeStock 後可用）
+        const sr     = srMap[code]
         const price  = stats?.currentPrice ?? priceMap[code] ?? 0
 
-        // 真實支撐壓力（有 srMap 就用，否則不傳）
-        const nearestSupport  = sr?.supportLevel1  ?? null
-        const nearestResist   = sr?.resistLevel1   ?? null
+        // ── 分析中（loading / pending / 尚未開始）──
+        if (!sig || status === 'loading' || status === 'pending' || status === undefined) {
+          return {
+            code, name,
+            color:    'yellow' as SignalColor,
+            action:   '分析中',
+            desc:     '正在取得個股分析資料，請稍候…',
+            isLoading: true,
+            _sortKey: 99,  // 排最後
+            unrealizedPct: stats?.unrealizedPnLPct ?? 0,
+          }
+        }
 
-        // 距支撐 / 壓力的距離比例（越近越緊急）
-        // null → 尚未分析，排序時視為中等距離
+        // ── 分析失敗（error）──
+        if (status === 'error') {
+          return {
+            code, name,
+            color:    'yellow' as SignalColor,
+            action:   '暫時無法分析',
+            desc:     '暫時無法取得分析資料，稍後可重試',
+            isLoading: false,
+            _sortKey: 98,  // 排在分析中之前，但在正常訊號之後
+            unrealizedPct: stats?.unrealizedPnLPct ?? 0,
+          }
+        }
+
+        // ── 分析成功：使用真實訊號與支撐壓力 ──
+        const nearestSupport = sr?.supportLevel1 ?? null
+        const nearestResist  = sr?.resistLevel1  ?? null
+
         const distToSupport = (price > 0 && nearestSupport)
-          ? (price - nearestSupport) / price    // 越小 = 越接近支撐（越緊急）
+          ? (price - nearestSupport) / price
           : 0.1
-        const distToResist  = (price > 0 && nearestResist)
-          ? (nearestResist - price) / price     // 越小 = 越接近壓力（越緊急）
+        const distToResist = (price > 0 && nearestResist)
+          ? (nearestResist - price) / price
           : 0.1
 
         const oneLiner = generateOneLiner(
-          sig.color,
-          true,
-          name,
-          price,
-          nearestSupport,   // 真實支撐
-          nearestResist,    // 真實壓力
+          sig.color, true, name, price, nearestSupport, nearestResist,
         )
 
         return {
-          code,
-          name,
-          color:         sig.color,
-          action:        oneLiner.action,
-          desc:          oneLiner.reason,
+          code, name,
+          color:     sig.color,
+          action:    oneLiner.action,
+          desc:      oneLiner.reason,
+          isLoading: false,
+          _sortKey:  COLOR_ORDER[sig.color],
           unrealizedPct: stats?.unrealizedPnLPct ?? 0,
-          // 排序輔助
-          _distToSupport: distToSupport,
-          _distToResist:  distToResist,
-          _minDist:       Math.min(distToSupport, distToResist),  // 距最近關鍵位的距離
+          _distMin:  Math.min(distToSupport, distToResist),
         }
       })
       .sort((a, b) => {
-        // 1. 燈號顏色優先（紅 > 橙 > 黃 > 綠）
-        const colorDiff = COLOR_ORDER[a.color] - COLOR_ORDER[b.color]
-        if (colorDiff !== 0) return colorDiff
-        // 2. 同色：距關鍵位（支撐或壓力）越近越優先
-        const distDiff = a._minDist - b._minDist
-        if (Math.abs(distDiff) > 0.005) return distDiff
-        // 3. 同色同距：虧損越深排越前
+        // 1. 分析中/失敗排最後
+        if (a._sortKey !== b._sortKey) return a._sortKey - b._sortKey
+        // 2. 同色：距關鍵位越近越優先
+        const ad = (a as any)._distMin ?? 0.1
+        const bd = (b as any)._distMin ?? 0.1
+        if (Math.abs(ad - bd) > 0.005) return ad - bd
+        // 3. 虧損越深排越前
         return (a.unrealizedPct ?? 0) - (b.unrealizedPct ?? 0)
       })
-      // 回傳前移除排序輔助欄位（TodayAlertBanner 不需要）
-      .map(({ _distToSupport: _d1, _distToResist: _d2, _minDist: _m, ...rest }) => rest)
-  }, [stockList, signalMap, statsMap, srMap, priceMap])
+      .map(({ _sortKey: _k, ...rest }) => rest)
+  }, [stockList, signalMap, statusMap, statsMap, srMap, priceMap])
 
-  // fetchAnalysis（保留所有邏輯）
+  // fetchAnalysis（analyzeStock 失敗時 retry 1 次，應對 Render Free 冷啟動）
   const fetchAnalysis = useCallback((code: string) => {
     setStatusMap(m => ({ ...m, [code]: 'loading' }))
-    analyzeStock(code)
-      .then(r => {
-        console.log(`[analyzeStock:${code}]`, {
-          resistance_levels: r.decision_card.resistance_levels,
-          support_levels:    r.decision_card.support_levels,
-          stop_loss:         r.decision_card.stop_loss,
-        })
+
+    const runAnalyze = (): Promise<void> =>
+      analyzeStock(code).then(r => {
         const p = r.basic.current_price
         if (!p || p <= 0) throw new Error('回傳現價無效')
         setPriceMap( m => ({ ...m, [code]: p }))
@@ -582,7 +619,6 @@ export default function PortfolioPage() {
           label:  r.decision_card.signal.label,
           action: r.decision_card.main_action,
         }}))
-        // 同步寫入全域 store，供首頁生成個人化今日筆記
         const holdingSt = statsMap[code]
         updateGlobalSignal({
           code,
@@ -605,21 +641,30 @@ export default function PortfolioPage() {
         }}))
         setSrAttempted(m => ({ ...m, [code]: true }))
       })
-      .catch(err => {
-        getStockBasic(code)
-          .then(data => {
-            const p = data.current_price
-            if (!p || p <= 0) throw new Error('現價無效')
-            setPriceMap( m => ({ ...m, [code]: p }))
-            setStatusMap(m => ({ ...m, [code]: 'done' }))
-            setSrAttempted(m => ({ ...m, [code]: true }))
-          })
-          .catch(() => {
-            const msg = err instanceof Error ? err.message : '無法取得現價'
-            setErrorMap( m => ({ ...m, [code]: msg }))
-            setStatusMap(m => ({ ...m, [code]: 'error' }))
-            setSrAttempted(m => ({ ...m, [code]: true }))
-          })
+
+    runAnalyze()
+      .catch(() => {
+        // Render Free 冷啟動：第一次失敗後等 3 秒 retry 1 次
+        setTimeout(() => {
+          runAnalyze()
+            .catch(err => {
+              // retry 仍失敗 → 降級取現價，不寫入 signalMap（不偽造訊號）
+              getStockBasic(code)
+                .then(data => {
+                  const p = data.current_price
+                  if (!p || p <= 0) throw new Error('現價無效')
+                  setPriceMap( m => ({ ...m, [code]: p }))
+                  setStatusMap(m => ({ ...m, [code]: 'error' }))
+                  setSrAttempted(m => ({ ...m, [code]: true }))
+                })
+                .catch(() => {
+                  const msg = err instanceof Error ? err.message : '無法取得資料'
+                  setErrorMap( m => ({ ...m, [code]: msg }))
+                  setStatusMap(m => ({ ...m, [code]: 'error' }))
+                  setSrAttempted(m => ({ ...m, [code]: true }))
+                })
+            })
+        }, 3000)
       })
   }, [])
 
@@ -683,7 +728,7 @@ export default function PortfolioPage() {
         </div>
 
         {/* ① 今日 AI 提醒（最上方，主角）*/}
-        {alertSignals.length > 0 && (
+        {stockList.filter(({ code }) => (statsMap[code]?.currentShares ?? 0) > 0).length > 0 && (
           <TodayAlertBanner signals={alertSignals} techMode={techMode} />
         )}
 
