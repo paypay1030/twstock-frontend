@@ -21,8 +21,16 @@ const BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 /** 統一 fetch wrapper：錯誤格式化、Content-Type */
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const isExternal = path.startsWith('http') || path.startsWith('/')
-  const url = isExternal && path.startsWith('/') ? path : `${BASE}${path}`
+  // URL 路由規則：
+  // 1. 完整 http/https URL → 直接使用
+  // 2. /api/today-note    → Vercel Next.js Route Handler（同 origin）
+  // 3. 其他 /api/*        → BASE + path（Render FastAPI）
+  const VERCEL_ROUTES = ['/api/today-note']
+  const url = path.startsWith('http')
+    ? path
+    : VERCEL_ROUTES.includes(path)
+      ? path
+      : `${BASE}${path}`
 
   const res = await fetch(url, {
     headers: { 'Content-Type': 'application/json' },
