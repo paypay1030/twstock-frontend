@@ -620,6 +620,11 @@ export default function PortfolioPage() {
           action: r.decision_card.main_action,
         }}))
         const holdingSt = statsMap[code]
+        const resLevels = r.decision_card.resistance_levels
+        const supLevels = r.decision_card.support_levels
+        const res1 = resLevels.find(l => l.rank === 1) ?? resLevels[0]
+        const res2 = resLevels.find(l => l.rank === 2) ?? resLevels[1]
+        const sup1 = supLevels.find(l => l.rank === 1) ?? supLevels[0]
         updateGlobalSignal({
           code,
           name:             stockList.find(s => s.code === code)?.name ?? code,
@@ -627,12 +632,11 @@ export default function PortfolioPage() {
           action:           r.decision_card.main_action,
           currentShares:    holdingSt?.currentShares ?? 0,
           unrealizedPnLPct: holdingSt?.unrealizedPnLPct ?? null,
+          // Phase 19：傳入真實支撐壓力與現價，供首頁個人化筆記使用
+          nearestSupport:   sup1?.range_high ?? null,
+          nearestResist:    res1?.range_low  ?? null,
+          currentPrice:     holdingSt?.currentPrice ?? r.basic?.current_price ?? null,
         })
-        const resLevels = r.decision_card.resistance_levels
-        const supLevels = r.decision_card.support_levels
-        const res1 = resLevels.find(l => l.rank === 1) ?? resLevels[0]
-        const res2 = resLevels.find(l => l.rank === 2) ?? resLevels[1]
-        const sup1 = supLevels.find(l => l.rank === 1) ?? supLevels[0]
         setSrMap(m => ({ ...m, [code]: {
           resistLevel1:  res1?.range_low  ?? undefined,
           resistLevel2:  res2?.range_low  ?? undefined,

@@ -1,14 +1,3 @@
-/**
- * TodayNoteProvider
- *
- * Client Component，負責：
- *   1. App 啟動後向 /api/today-note 取得今日筆記
- *   2. 寫入 useTodayNoteStore（session-only，不進 LocalStorage）
- *   3. 持股燈號更新時，用 generateTodayNote() 覆蓋（個人化優先）
- *
- * 放在 layout.tsx，確保所有頁面載入前資料已就位。
- * TodayNoteCard 只負責顯示，完全不知道資料從哪裡來。
- */
 'use client'
 
 import { useEffect, useRef } from 'react'
@@ -22,8 +11,10 @@ const REFRESH_INTERVAL_MS = 5 * 60 * 1000  // 5 分鐘後允許重新取得
 export default function TodayNoteProvider() {
   const { setTodayNote } = useTodayNoteStore()
   const { signals } = usePortfolioSignalStore()
-  const lastFetchedAt = useRef<number>(0)
-  const hasFetched    = useRef(false)
+  const lastFetchedAt  = useRef<number>(0)
+  const hasFetched     = useRef(false)
+  // 暫存大盤 mood，供 Step 2 個人化筆記使用
+  const marketMoodRef  = useRef<string | null>(null)
 
   // ── Step 1：App 啟動後取得 API 筆記（全局預設）──────────────
   useEffect(() => {
@@ -35,9 +26,13 @@ export default function TodayNoteProvider() {
 
     getTodayNote()
       .then(data => {
+        // 暫存大盤 mood，供後續個人化使用
+        if (data.marketData?.mood) {
+          marketMoodRef.current = data.marketData.mood
+        }
         // 只有在「還沒有個人化燈號資料」的情況下套用 API 預設值
         if (usePortfolioSignalStore.getState().signals.length === 0) {
-          const { generatedAt: _g, source: _s, ...noteData } = data
+          const { generatedAt: _g, source: _s, marketData: _m, ...noteData } = data
           setTodayNote(noteData)
         }
       })
@@ -49,7 +44,8 @@ export default function TodayNoteProvider() {
   // ── Step 2：持股燈號更新時，產生個人化筆記（優先度最高）────
   useEffect(() => {
     if (signals.length === 0) return
-    const personalNote = generateTodayNote(signals)
+    // 傳入大盤狀態（若已取得），讓筆記結合大盤 + 持股燈號
+    const personalNote = generateTodayNote(signals, marketMoodRef.current)
     setTodayNote(personalNote)
   }, [signals, setTodayNote])
 

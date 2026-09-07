@@ -13,6 +13,14 @@ import type { TodayNoteData } from '@/components/nb/TodayNoteCard'
 export interface TodayNoteResponse extends TodayNoteData {
   generatedAt: string
   source: 'market_data' | 'mock' | 'unavailable'
+  // 額外大盤資料，供 TodayNoteProvider 個人化使用（不影響 TodayNoteData contract）
+  marketData?: {
+    taiex?:      number
+    change?:     number
+    changePct?:  number
+    tradeDate?:  string
+    mood?:       string   // '偏多' | '偏空' | '偏震盪' | '偏強，有量的上漲' | '偏空，需要留意'
+  }
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'

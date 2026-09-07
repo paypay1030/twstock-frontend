@@ -18,6 +18,10 @@ export interface PortfolioSignal {
   action: string
   currentShares: number
   unrealizedPnLPct?: number | null
+  // Phase 19：支撐壓力與現價（來自 fetchAnalysis 後的 srMap / statsMap）
+  nearestSupport?: number | null   // 第一支撐位（元）
+  nearestResist?:  number | null   // 第一壓力位（元）
+  currentPrice?:   number | null   // 目前股價（元）
 }
 
 interface PortfolioSignalStore {
