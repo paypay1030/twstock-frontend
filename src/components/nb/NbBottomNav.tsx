@@ -16,11 +16,12 @@ export default function NbBottomNav() {
 
   return (
     <nav className="
-      shrink-0 z-40
+      fixed bottom-0 left-0 right-0 z-50
       bg-nb-footer border-t border-nb-border
       pb-[env(safe-area-inset-bottom,0px)]
     ">
-      <div className="flex">
+      {/* 內容限制在 max-w-lg 內，與頁面 wrapper 對齊 */}
+      <div className="max-w-lg mx-auto flex">
         {NAV_ITEMS.map(({ href, icon, label }) => {
           const active = href === '/' ? path === '/' : path.startsWith(href)
           return (

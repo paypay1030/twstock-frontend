@@ -34,7 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <NbHeader />
 
           {/* ── 頁面主內容 ── */}
-          <main className="flex-1 overflow-y-auto pb-20">
+          <main className="flex-1 overflow-y-auto pb-[calc(5rem+env(safe-area-inset-bottom,0px))]">
             {children}
           </main>
 
