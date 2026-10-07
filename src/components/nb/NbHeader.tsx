@@ -25,7 +25,7 @@ export default function NbHeader() {
   return (
     <header className="
       shrink-0 sticky top-0 z-40
-      bg-nb-card border-b border-nb-border
+      bg-nb-s0 border-b border-nb-border
       pt-[env(safe-area-inset-top,0px)]
     ">
       {/* ── 第一層：Logo + 模式切換 ── */}
